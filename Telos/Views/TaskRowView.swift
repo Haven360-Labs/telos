@@ -8,25 +8,56 @@ struct TaskRowView: View {
     @Environment(StreakStore.self) private var streakStore
     @State private var isAddingSubtask = false
     @State private var newSubtaskTitle = ""
+    @State private var isEditingTitle = false
+    @State private var editedTitle = ""
+    @FocusState private var isTitleFieldFocused: Bool
+    @State private var showCompleteSubtasksAlert = false
+
+    private var hasIncompleteSubtasks: Bool {
+        !task.subtasks.isEmpty && !task.subtasks.allSatisfy(\.isCompleted)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 8) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        task.isCompleted.toggle()
+                    if !task.isCompleted && hasIncompleteSubtasks {
+                        showCompleteSubtasksAlert = true
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            task.isCompleted.toggle()
+                        }
+                        try? modelContext.save()
                     }
-                    try? modelContext.save()
                 } label: {
                     Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                         .foregroundStyle(task.isCompleted ? .green : .secondary)
                 }
                 .buttonStyle(.plain)
 
-                Text(task.title)
-                    .strikethrough(task.isCompleted)
-                    .foregroundStyle(task.isCompleted ? .secondary : .primary)
+                if isEditingTitle {
+                    TextField("Task title", text: $editedTitle)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($isTitleFieldFocused)
+                        .onSubmit { commitTitleEdit() }
+                        .onExitCommand { cancelTitleEdit() }
+                } else {
+                    Text(task.title)
+                        .strikethrough(task.isCompleted)
+                        .foregroundStyle(task.isCompleted ? .secondary : .primary)
+                    Button {
+                        editedTitle = task.title
+                        isEditingTitle = true
+                        isTitleFieldFocused = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
 
-                if task.parent == nil {
+                if !isEditingTitle && task.parent == nil {
                     Menu {
                         ForEach(EisenhowerQuadrant.allCases) { q in
                             Button {
@@ -51,63 +82,79 @@ struct TaskRowView: View {
                     .menuStyle(.borderlessButton)
                 }
 
-                if task.isRolledOver {
-                    Text("Yesterday")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.quaternary, in: Capsule())
-                }
+                if !isEditingTitle {
+                    if task.isRolledOver {
+                        Text("Yesterday")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.quaternary, in: Capsule())
+                    }
 
-                if task.timeSpentSeconds > 0 {
-                    Text(formatTimeSpent(task.timeSpentSeconds))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                    if task.timeSpentSeconds > 0 {
+                        Text(formatTimeSpent(task.timeSpentSeconds))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    if timerStore.isActive(task: task) { return }
-                    timerStore.startCountUp(task: task, modelContext: modelContext)
-                    streakStore.recordUsage()
-                } label: {
-                    Image(systemName: timerStore.isActive(task: task) ? "timer" : "play.circle")
-                        .foregroundStyle(timerStore.isActive(task: task) ? .orange : .secondary)
-                }
-                .buttonStyle(.plain)
-                .contextMenu {
-                    Button("Count up") {
-                        if !timerStore.isActive(task: task) {
+                    Button {
+                        if task.isCompleted || timerStore.isActive(task: task) { return }
+                        timerStore.startCountUp(task: task, modelContext: modelContext)
+                        streakStore.recordUsage()
+                    } label: {
+                        Image(systemName: timerStore.isActive(task: task) ? "timer" : "play.circle")
+                            .foregroundStyle(timerStore.isActive(task: task) ? .orange : (task.isCompleted ? Color.secondary.opacity(0.5) : .secondary))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(task.isCompleted)
+                    .contextMenu {
+                        Button("Count up") {
+                            guard !task.isCompleted, !timerStore.isActive(task: task) else { return }
                             timerStore.startCountUp(task: task, modelContext: modelContext)
                             streakStore.recordUsage()
                         }
-                    }
-                    Section("Countdown") {
-                        ForEach([15, 25, 45], id: \.self) { minutes in
-                            Button("\(minutes) min") {
-                                if !timerStore.isActive(task: task) {
+                        .disabled(task.isCompleted)
+                        Section("Countdown") {
+                            ForEach([15, 25, 45], id: \.self) { minutes in
+                                Button("\(minutes) min") {
+                                    guard !task.isCompleted, !timerStore.isActive(task: task) else { return }
                                     timerStore.startCountdown(task: task, durationMinutes: minutes, modelContext: modelContext)
                                     streakStore.recordUsage()
                                 }
+                                .disabled(task.isCompleted)
                             }
                         }
                     }
-                }
 
-                if task.parent == nil {
-                    Button {
-                        isAddingSubtask = true
-                    } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.body)
+                    if task.parent == nil {
+                        Button {
+                            isAddingSubtask = true
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .font(.body)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.vertical, 4)
             .contextMenu {
+                Button {
+                    editedTitle = task.title
+                    isEditingTitle = true
+                    isTitleFieldFocused = true
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    deleteTask()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                Divider()
                 Button(role: .destructive) {
                     markAsNoLongerNeeded()
                 } label: {
@@ -140,6 +187,36 @@ struct TaskRowView: View {
                 .padding(.vertical, 4)
             }
         }
+        .alert("Complete subtasks first", isPresented: $showCompleteSubtasksAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Complete all subtasks before marking this task as done.")
+        }
+    }
+
+    private func commitTitleEdit() {
+        let trimmed = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            task.title = trimmed
+            try? modelContext.save()
+            streakStore.recordUsage()
+        }
+        isEditingTitle = false
+        isTitleFieldFocused = false
+    }
+
+    private func cancelTitleEdit() {
+        isEditingTitle = false
+        isTitleFieldFocused = false
+    }
+
+    private func deleteTask() {
+        if timerStore.isActive(task: task) {
+            timerStore.stopAndRecord(modelContext: modelContext)
+        }
+        modelContext.delete(task)
+        try? modelContext.save()
+        streakStore.recordUsage()
     }
 
     private func markAsNoLongerNeeded() {

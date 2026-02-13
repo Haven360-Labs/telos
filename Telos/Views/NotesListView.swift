@@ -26,7 +26,20 @@ struct NotesListView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        selectedNote = note
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        deleteNote(note)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
             }
+            .onDelete(perform: deleteNotesAtOffsets)
         }
         .listStyle(.inset)
         .navigationTitle("Notes")
@@ -48,9 +61,32 @@ struct NotesListView: View {
             .presentationCornerRadius(12)
         }
         .sheet(item: $selectedNote) { note in
-            NoteDetailView(note: note, modelContext: modelContext)
-                .presentationCornerRadius(12)
+            NoteDetailView(note: note, modelContext: modelContext, onDismiss: {
+                selectedNote = nil
+            })
+            .presentationCornerRadius(12)
         }
+    }
+
+    private func deleteNote(_ note: PlanNote) {
+        if selectedNote?.id == note.id {
+            selectedNote = nil
+        }
+        modelContext.delete(note)
+        try? modelContext.save()
+        streakStore.recordUsage()
+    }
+
+    private func deleteNotesAtOffsets(_ offsets: IndexSet) {
+        for index in offsets {
+            let note = notes[index]
+            if selectedNote?.id == note.id {
+                selectedNote = nil
+            }
+            modelContext.delete(note)
+        }
+        try? modelContext.save()
+        streakStore.recordUsage()
     }
 
     private func addNote() {
@@ -89,16 +125,35 @@ struct AddNoteView: View {
 struct NoteDetailView: View {
     @Bindable var note: PlanNote
     var modelContext: ModelContext
+    var onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Text(note.createdAt, style: .date)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             TextEditor(text: $note.content)
                 .font(.body)
+                .padding(8)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+            HStack {
+                Button(role: .destructive) {
+                    modelContext.delete(note)
+                    try? modelContext.save()
+                    onDismiss()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                Spacer()
+                Button("Save") {
+                    try? modelContext.save()
+                    onDismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+            }
         }
-        .padding()
+        .padding(20)
         .frame(minWidth: 400, minHeight: 300)
         .onDisappear { try? modelContext.save() }
     }
