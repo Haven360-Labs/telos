@@ -14,6 +14,15 @@ struct MenuBarView: View {
 
     private var recentNotes: [PlanNote] { Array(notes.prefix(5)) }
 
+    private var activeTimerSubtitle: String {
+        if timerStore.isPaused { return "Paused" }
+        if timerStore.isCountUp {
+            _ = timerStore.countUpTick
+            return "\(timerStore.formattedElapsed) elapsed"
+        }
+        return "\(timerStore.formattedRemaining) left"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if timerStore.activeTaskID != nil {
@@ -23,7 +32,7 @@ struct MenuBarView: View {
                         Text(timerStore.activeTaskTitle ?? "Task")
                             .font(.subheadline)
                             .lineLimit(1)
-                        Text(timerStore.isCountUp ? "\(timerStore.formattedElapsed) elapsed" : "\(timerStore.formattedRemaining) left")
+                        Text(activeTimerSubtitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
@@ -31,6 +40,27 @@ struct MenuBarView: View {
                     Spacer()
                 }
                 .padding(.vertical, 4)
+                HStack(spacing: 8) {
+                    if timerStore.isPaused {
+                        Button("Resume") {
+                            timerStore.resume(modelContext: modelContext)
+                            streakStore.recordUsage()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                    } else {
+                        Button("Pause") {
+                            timerStore.pause()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    Button("Stop") {
+                        timerStore.stopAndRecord(modelContext: modelContext)
+                        streakStore.recordUsage()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                }
                 Divider()
             }
             Text("Today's plan")
