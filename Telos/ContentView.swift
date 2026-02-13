@@ -245,11 +245,25 @@ struct DayPlanView: View {
                 }
             }
             HStack(spacing: 10) {
+                if timerStore.isPaused {
+                    Button("Resume") {
+                        timerStore.resume(modelContext: modelContext)
+                        streakStore.recordUsage()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                } else {
+                    Button("Pause") {
+                        timerStore.pause()
+                    }
+                    .buttonStyle(.bordered)
+                }
                 Button("Stop") {
                     timerStore.stopAndRecord(modelContext: modelContext)
                     streakStore.recordUsage()
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.red)
             }
         }
         .padding(20)
@@ -262,6 +276,9 @@ struct DayPlanView: View {
     }
 
     private var activeTaskSubtitle: String {
+        if timerStore.isPaused {
+            return "Paused"
+        }
         if timerStore.isCountUp {
             return "Focus mode · Count up"
         }

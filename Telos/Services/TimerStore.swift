@@ -14,6 +14,10 @@ final class TimerStore {
     var isCountUp: Bool = false
     /// Incremented every second in count-up mode so UI refreshes elapsed display.
     var countUpTick: Int = 0
+    /// When true, timer is paused (no tick); remaining/elapsed stay fixed until resume.
+    var isPaused: Bool = false
+    /// When paused in count-up mode, holds elapsed seconds so we can resume from the same value.
+    private var countUpPausedElapsedSeconds: TimeInterval = 0
 
     private var timer: Timer?
     private let calendar = Calendar.current
@@ -39,6 +43,8 @@ final class TimerStore {
         countUpStartDate = nil
         isCountUp = false
         isRunning = true
+        isPaused = false
+        countUpPausedElapsedSeconds = 0
         scheduleTick(modelContext: modelContext)
     }
 
@@ -52,6 +58,30 @@ final class TimerStore {
         countdownRemainingSeconds = 0
         isCountUp = true
         isRunning = true
+        isPaused = false
+        countUpPausedElapsedSeconds = 0
+        scheduleTick(modelContext: modelContext)
+    }
+
+    /// Pause the active timer (count-up or countdown). Remaining/elapsed stay fixed until resume.
+    func pause() {
+        guard activeTaskID != nil, isRunning, !isPaused else { return }
+        timer?.invalidate()
+        timer = nil
+        if isCountUp {
+            countUpPausedElapsedSeconds = countUpElapsedSeconds
+        }
+        isPaused = true
+    }
+
+    /// Resume a paused timer.
+    func resume(modelContext: ModelContext) {
+        guard activeTaskID != nil, isRunning, isPaused else { return }
+        if isCountUp {
+            countUpStartDate = Date().addingTimeInterval(-countUpPausedElapsedSeconds)
+        }
+        isPaused = false
+        countUpPausedElapsedSeconds = 0
         scheduleTick(modelContext: modelContext)
     }
 
@@ -66,8 +96,8 @@ final class TimerStore {
         }
         if isRunning {
             let elapsed: TimeInterval
-            if isCountUp, let start = countUpStartDate {
-                elapsed = Date().timeIntervalSince(start)
+            if isCountUp {
+                elapsed = isPaused ? countUpPausedElapsedSeconds : (countUpStartDate.map { Date().timeIntervalSince($0) } ?? 0)
             } else if countdownTotalSeconds > 0, countdownRemainingSeconds < countdownTotalSeconds {
                 elapsed = countdownTotalSeconds - countdownRemainingSeconds
             } else {
@@ -85,6 +115,8 @@ final class TimerStore {
         countUpStartDate = nil
         isCountUp = false
         countUpTick = 0
+        isPaused = false
+        countUpPausedElapsedSeconds = 0
         isRunning = false
     }
 
@@ -98,6 +130,7 @@ final class TimerStore {
     }
 
     private func tick(modelContext: ModelContext) {
+        guard !isPaused else { return }
         if isCountUp {
             countUpTick += 1
             return
@@ -136,9 +169,11 @@ final class TimerStore {
         return String(format: "%d:%02d", m, s)
     }
 
-    /// Elapsed seconds for count-up (from countUpStartDate to now).
+    /// Elapsed seconds for count-up (from countUpStartDate to now, or paused value when paused).
     var countUpElapsedSeconds: TimeInterval {
-        guard isCountUp, let start = countUpStartDate else { return 0 }
+        guard isCountUp else { return 0 }
+        if isPaused { return countUpPausedElapsedSeconds }
+        guard let start = countUpStartDate else { return 0 }
         return Date().timeIntervalSince(start)
     }
 

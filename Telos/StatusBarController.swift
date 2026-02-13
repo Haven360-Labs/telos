@@ -63,7 +63,8 @@ final class StatusBarController: NSObject {
         }
         let task = timerStore.activeTaskTitle ?? "Task"
         let short = task.count > 16 ? String(task.prefix(15)) + "…" : task
-        return ("\(time) · \(short)", "timer")
+        let pausedSuffix = timerStore.isPaused ? " (paused)" : ""
+        return ("\(time) · \(short)\(pausedSuffix)", "timer")
     }
 
     private func startLabelTimer() {
