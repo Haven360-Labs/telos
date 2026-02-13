@@ -176,6 +176,7 @@ struct DayPlanView: View {
     @Environment(TimerStore.self) private var timerStore
     @Environment(StreakStore.self) private var streakStore
     @State private var newTaskTitle = ""
+    @State private var newTaskQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
 
     var body: some View {
         ScrollView {
@@ -326,6 +327,33 @@ struct DayPlanView: View {
 
     private var addTaskBar: some View {
         HStack(spacing: 10) {
+            Menu {
+                ForEach(EisenhowerQuadrant.matrixDisplayOrder, id: \.rawValue) { q in
+                    Button {
+                        newTaskQuadrant = q
+                    } label: {
+                        HStack {
+                            Image(systemName: q.systemImage)
+                                .foregroundStyle(q.accentColor)
+                            Text(q.shortTitle)
+                            if newTaskQuadrant == q {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: newTaskQuadrant.systemImage)
+                        .foregroundStyle(newTaskQuadrant.accentColor)
+                    Text(newTaskQuadrant.shortTitle)
+                        .font(.subheadline)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
+            }
+            .menuStyle(.borderlessButton)
             TextField("New task", text: $newTaskTitle)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { addTask() }
@@ -416,7 +444,7 @@ struct DayPlanView: View {
         let title = newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         let nextOrder = (planDay.tasks.filter { $0.parent == nil }.map(\.sortOrder).max() ?? -1) + 1
-        let task = PlanTask(title: title, sortOrder: nextOrder, planDay: planDay, parent: nil)
+        let task = PlanTask(title: title, sortOrder: nextOrder, planDay: planDay, parent: nil, quadrant: newTaskQuadrant)
         withAnimation(.easeOut(duration: 0.22)) {
             modelContext.insert(task)
             planDay.tasks.append(task)

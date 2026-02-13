@@ -9,6 +9,7 @@ struct MenuBarView: View {
     @Query(sort: \PlanNote.createdAt, order: .reverse) private var notes: [PlanNote]
     @State private var showQuickAdd = false
     @State private var quickAddTitle = ""
+    @State private var quickAddQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
     @State private var showAddNote = false
     @State private var noteContent = ""
 
@@ -71,11 +72,37 @@ struct MenuBarView: View {
             }
             .keyboardShortcut("n", modifiers: [.command])
             if showQuickAdd {
-                HStack(spacing: 6) {
-                    TextField("Task title", text: $quickAddTitle)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { submitQuickAdd() }
-                    Button("Add") { submitQuickAdd() }
+                VStack(alignment: .leading, spacing: 6) {
+                    Menu {
+                        ForEach(EisenhowerQuadrant.matrixDisplayOrder, id: \.rawValue) { q in
+                            Button {
+                                quickAddQuadrant = q
+                            } label: {
+                                HStack {
+                                    Image(systemName: q.systemImage)
+                                        .foregroundStyle(q.accentColor)
+                                    Text(q.shortTitle)
+                                    if quickAddQuadrant == q {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: quickAddQuadrant.systemImage)
+                                .foregroundStyle(quickAddQuadrant.accentColor)
+                            Text(quickAddQuadrant.shortTitle)
+                                .font(.caption)
+                        }
+                    }
+                    .menuStyle(.borderlessButton)
+                    HStack(spacing: 6) {
+                        TextField("Task title", text: $quickAddTitle)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { submitQuickAdd() }
+                        Button("Add") { submitQuickAdd() }
+                    }
                 }
                 .padding(.vertical, 4)
             }
@@ -127,7 +154,7 @@ struct MenuBarView: View {
         dayStore.ensureTodayExists(modelContext: modelContext)
         guard let today = fetchToday() else { return }
         let nextOrder = (today.tasks.filter { $0.parent == nil }.map(\.sortOrder).max() ?? -1) + 1
-        let task = PlanTask(title: title, sortOrder: nextOrder, planDay: today, parent: nil)
+        let task = PlanTask(title: title, sortOrder: nextOrder, planDay: today, parent: nil, quadrant: quickAddQuadrant)
         modelContext.insert(task)
         today.tasks.append(task)
         try? modelContext.save()
