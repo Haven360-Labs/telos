@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct TaskRowView: View {
+    private static let countdownDurations = [15, 30, 45, 60, 75, 90]
+
     @Bindable var task: PlanTask
     var timerStore: TimerStore
     @Environment(\.modelContext) private var modelContext
@@ -100,33 +102,35 @@ struct TaskRowView: View {
 
                     Spacer()
 
-                    Button {
-                        if task.isCompleted || timerStore.isActive(task: task) { return }
-                        timerStore.startCountUp(task: task, modelContext: modelContext)
-                        streakStore.recordUsage()
-                    } label: {
-                        Image(systemName: timerStore.isActive(task: task) ? "timer" : "play.circle")
-                            .foregroundStyle(timerStore.isActive(task: task) ? .orange : (task.isCompleted ? Color.secondary.opacity(0.5) : .secondary))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(task.isCompleted)
-                    .contextMenu {
-                        Button("Count up") {
-                            guard !task.isCompleted, !timerStore.isActive(task: task) else { return }
-                            timerStore.startCountUp(task: task, modelContext: modelContext)
-                            streakStore.recordUsage()
-                        }
-                        .disabled(task.isCompleted)
-                        Section("Countdown") {
-                            ForEach([15, 25, 45], id: \.self) { minutes in
-                                Button("\(minutes) min") {
-                                    guard !task.isCompleted, !timerStore.isActive(task: task) else { return }
-                                    timerStore.startCountdown(task: task, durationMinutes: minutes, modelContext: modelContext)
-                                    streakStore.recordUsage()
-                                }
-                                .disabled(task.isCompleted)
+                    if timerStore.isActive(task: task) {
+                        Image(systemName: "timer")
+                            .foregroundStyle(.orange)
+                    } else {
+                        Menu {
+                            Button {
+                                guard !task.isCompleted else { return }
+                                timerStore.startCountUp(task: task, modelContext: modelContext)
+                                streakStore.recordUsage()
+                            } label: {
+                                Label("Count up", systemImage: "arrow.up.circle")
                             }
+                            .disabled(task.isCompleted)
+                            Section("Countdown") {
+                                ForEach(TaskRowView.countdownDurations, id: \.self) { minutes in
+                                    Button("\(minutes) min") {
+                                        guard !task.isCompleted else { return }
+                                        timerStore.startCountdown(task: task, durationMinutes: minutes, modelContext: modelContext)
+                                        streakStore.recordUsage()
+                                    }
+                                    .disabled(task.isCompleted)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "play.circle")
+                                .foregroundStyle(task.isCompleted ? Color.secondary.opacity(0.5) : .secondary)
                         }
+                        .menuStyle(.borderlessButton)
+                        .disabled(task.isCompleted)
                     }
 
                     if task.parent == nil {
