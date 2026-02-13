@@ -1,6 +1,17 @@
 import SwiftUI
 import SwiftData
 import AppKit
+import UniformTypeIdentifiers
+
+/// Payload for drag-and-drop reorder within a quadrant.
+private struct TaskDragPayload: Transferable, Codable {
+    let quadrantRaw: Int
+    let sourceIndex: Int
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .json)
+    }
+}
 
 private enum SidebarItem: String, CaseIterable, Identifiable {
     case today = "Today"
@@ -363,8 +374,17 @@ struct DayPlanView: View {
                     .padding(.vertical, 4)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(tasks) { task in
+                    ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
                         TaskRowView(task: task, timerStore: timerStore)
+                            .draggable(TaskDragPayload(quadrantRaw: q.rawValue, sourceIndex: index))
+                            .dropDestination(for: TaskDragPayload.self) { payloads, _ in
+                                guard let payload = payloads.first,
+                                      payload.quadrantRaw == q.rawValue,
+                                      payload.sourceIndex != index else { return false }
+                                let toIdx = payload.sourceIndex < index ? index - 1 : index
+                                moveTasks(in: q, from: IndexSet(integer: payload.sourceIndex), to: toIdx)
+                                return true
+                            } isTargeted: { _ in }
                     }
                 }
             }
@@ -372,6 +392,24 @@ struct DayPlanView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func moveTasks(in quadrant: EisenhowerQuadrant, from source: IndexSet, to destination: Int) {
+        var tasks = planDay.topLevelTasksForDisplay(in: quadrant)
+        let incompleteCount = tasks.filter { !$0.isCompleted }.count
+        guard let fromIdx = source.first, fromIdx < tasks.count else { return }
+        var toIdx = destination
+        if fromIdx < incompleteCount {
+            toIdx = min(max(toIdx, 0), incompleteCount - 1)
+        } else {
+            toIdx = min(max(toIdx, incompleteCount), tasks.count - 1)
+        }
+        let task = tasks.remove(at: fromIdx)
+        tasks.insert(task, at: toIdx)
+        for (i, t) in tasks.enumerated() {
+            t.sortOrder = i
+        }
+        try? modelContext.save()
     }
 
     private func addTask() {

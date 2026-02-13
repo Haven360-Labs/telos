@@ -1,5 +1,16 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
+
+/// Payload for drag-and-drop reorder of subtasks within a parent.
+private struct SubtaskDragPayload: Transferable, Codable {
+    let parentIdHash: Int
+    let sourceIndex: Int
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .json)
+    }
+}
 
 struct TaskRowView: View {
     private static let countdownDurations = [15, 30, 45, 60, 75, 90]
@@ -178,9 +189,17 @@ struct TaskRowView: View {
 
             if !task.subtasks.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(task.subtasksForDisplay) { subtask in
+                    ForEach(Array(task.subtasksForDisplay.enumerated()), id: \.element.id) { index, subtask in
                         TaskRowView(task: subtask, timerStore: timerStore)
                             .padding(.leading, 24)
+                            .draggable(SubtaskDragPayload(parentIdHash: task.persistentModelID.hashValue, sourceIndex: index))
+                            .dropDestination(for: SubtaskDragPayload.self) { payloads, _ in
+                                guard let payload = payloads.first,
+                                      payload.parentIdHash == task.persistentModelID.hashValue,
+                                      payload.sourceIndex != index else { return false }
+                                moveSubtasks(from: payload.sourceIndex, to: index)
+                                return true
+                            } isTargeted: { _ in }
                     }
                 }
             }
@@ -312,6 +331,24 @@ struct TaskRowView: View {
         let m = Int(seconds / 60)
         let s = Int(seconds.truncatingRemainder(dividingBy: 60))
         return "\(m)m \(s)s"
+    }
+
+    private func moveSubtasks(from sourceIndex: Int, to destinationIndex: Int) {
+        var subtasks = task.subtasksForDisplay
+        let incompleteCount = subtasks.filter { !$0.isCompleted }.count
+        guard sourceIndex < subtasks.count else { return }
+        var toIdx = sourceIndex < destinationIndex ? destinationIndex - 1 : destinationIndex
+        if sourceIndex < incompleteCount {
+            toIdx = min(max(toIdx, 0), incompleteCount - 1)
+        } else {
+            toIdx = min(max(toIdx, incompleteCount), subtasks.count - 1)
+        }
+        let moved = subtasks.remove(at: sourceIndex)
+        subtasks.insert(moved, at: toIdx)
+        for (i, st) in subtasks.enumerated() {
+            st.sortOrder = i
+        }
+        try? modelContext.save()
     }
 
     private func addSubtask() {
