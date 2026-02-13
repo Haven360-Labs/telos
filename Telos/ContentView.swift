@@ -332,7 +332,7 @@ struct DayPlanView: View {
 
     private var matrixSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ForEach(EisenhowerQuadrant.allCases) { q in
+            ForEach(EisenhowerQuadrant.matrixDisplayOrder, id: \.rawValue) { q in
                 quadrantCard(quadrant: q)
             }
         }

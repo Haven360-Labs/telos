@@ -15,6 +15,7 @@ struct TaskRowView: View {
     @FocusState private var isTitleFieldFocused: Bool
     @State private var showCompleteSubtasksAlert = false
     @State private var showCustomTimerSheet = false
+    @State private var showScheduledDatePopover = false
 
     private var hasIncompleteSubtasks: Bool {
         !task.subtasks.isEmpty && !task.subtasks.allSatisfy(\.isCompleted)
@@ -86,6 +87,9 @@ struct TaskRowView: View {
                 }
 
                 if !isEditingTitle {
+                    if task.parent == nil && task.quadrant == .importantNotUrgent {
+                        scheduledDateLabel
+                    }
                     if task.isRolledOver {
                         Text("Yesterday")
                             .font(.caption2)
@@ -212,6 +216,59 @@ struct TaskRowView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Complete all subtasks before marking this task as done.")
+        }
+    }
+
+    @ViewBuilder
+    private var scheduledDateLabel: some View {
+        Button {
+            showScheduledDatePopover = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "calendar")
+                    .font(.caption2)
+                if let date = task.scheduledDate {
+                    Text(date.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption)
+                } else {
+                    Text("Set date")
+                        .font(.caption)
+                }
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showScheduledDatePopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Work on date")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                DatePicker(
+                    "Date",
+                    selection: Binding(
+                        get: { task.scheduledDate ?? Date() },
+                        set: { task.scheduledDate = $0 }
+                    ),
+                    displayedComponents: .date
+                )
+                .labelsHidden()
+                if task.scheduledDate != nil {
+                    Button("Clear date") {
+                        task.scheduledDate = nil
+                        try? modelContext.save()
+                        showScheduledDatePopover = false
+                    }
+                    .foregroundStyle(.red)
+                }
+            }
+            .padding(16)
+            .frame(width: 220)
+            .onChange(of: task.scheduledDate) { _, _ in
+                try? modelContext.save()
+            }
         }
     }
 

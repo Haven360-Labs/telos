@@ -46,6 +46,11 @@ enum EisenhowerQuadrant: Int, CaseIterable, Identifiable {
         case .notImportantNotUrgent: return .gray
         }
     }
+
+    /// Order for matrix display: Do first, Delegate/quick, Schedule, Later.
+    static var matrixDisplayOrder: [EisenhowerQuadrant] {
+        [.importantUrgent, .urgentNotImportant, .importantNotUrgent, .notImportantNotUrgent]
+    }
 }
 
 /// A task (or subtask) belonging to a plan day. Top-level tasks have `parent == nil`; subtasks have a non-nil parent.
@@ -63,6 +68,8 @@ final class PlanTask {
     var isArchived: Bool = false
     /// Eisenhower quadrant (1–4). Only meaningful for top-level tasks; subtasks inherit display from parent.
     var quadrantRaw: Int = EisenhowerQuadrant.notImportantNotUrgent.rawValue
+    /// Optional date when the user plans to work on this task (e.g. for Schedule quadrant).
+    var scheduledDate: Date?
 
     var planDay: PlanDay?
     var parent: PlanTask?
@@ -81,7 +88,8 @@ final class PlanTask {
         sortOrder: Int = 0,
         planDay: PlanDay? = nil,
         parent: PlanTask? = nil,
-        quadrant: EisenhowerQuadrant = .notImportantNotUrgent
+        quadrant: EisenhowerQuadrant = .notImportantNotUrgent,
+        scheduledDate: Date? = nil
     ) {
         self.title = title
         self.isCompleted = isCompleted
@@ -90,6 +98,7 @@ final class PlanTask {
         self.planDay = planDay
         self.parent = parent
         self.quadrantRaw = quadrant.rawValue
+        self.scheduledDate = scheduledDate
     }
 
     /// Top-level tasks only (no parent).
