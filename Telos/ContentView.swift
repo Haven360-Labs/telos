@@ -86,13 +86,6 @@ struct ContentView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
-                        HStack(spacing: 4) {
-                            ForEach(0 ..< min(5, streakStore.currentStreak), id: \.self) { _ in
-                                Circle()
-                                    .fill(Color.green)
-                                    .frame(width: 6, height: 6)
-                            }
-                        }
                     }
                 }
                 .padding(.vertical, 4)
