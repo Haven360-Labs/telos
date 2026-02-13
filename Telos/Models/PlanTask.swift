@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 /// Eisenhower quadrant: importance (y) × urgency (x). Stored as Int 1–4 on PlanTask.
 enum EisenhowerQuadrant: Int, CaseIterable, Identifiable {
@@ -25,6 +26,24 @@ enum EisenhowerQuadrant: Int, CaseIterable, Identifiable {
         case .importantNotUrgent: return "Important, Not Urgent"
         case .urgentNotImportant: return "Urgent, Not Important"
         case .notImportantNotUrgent: return "Not Important, Not Urgent"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .importantUrgent: return "exclamationmark.circle.fill"
+        case .importantNotUrgent: return "calendar"
+        case .urgentNotImportant: return "person.2"
+        case .notImportantNotUrgent: return "trash"
+        }
+    }
+
+    var accentColor: Color {
+        switch self {
+        case .importantUrgent: return .red
+        case .importantNotUrgent: return .blue
+        case .urgentNotImportant: return .orange
+        case .notImportantNotUrgent: return .gray
         }
     }
 }

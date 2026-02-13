@@ -2,52 +2,32 @@ import SwiftUI
 import SwiftData
 import AppKit
 
+private enum SidebarItem: String, CaseIterable, Identifiable {
+    case today = "Today"
+    case notes = "Notes"
+    case retrospective = "Retrospective"
+    var id: String { rawValue }
+}
+
 struct ContentView: View {
     @Environment(DayStore.self) private var dayStore
     @Environment(TimerStore.self) private var timerStore
     @Environment(StreakStore.self) private var streakStore
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \PlanDay.date, order: .reverse) private var days: [PlanDay]
+    @State private var sidebarSelection: SidebarItem? = .today
     @State private var showAddNoteSheet = false
     @State private var quickNoteContent = ""
 
+    private var today: PlanDay? {
+        days.first(where: { Calendar.current.isDateInToday($0.date) })
+    }
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if let today = days.first(where: { Calendar.current.isDateInToday($0.date) }) {
-                    DayPlanView(planDay: today)
-                } else {
-                    ContentUnavailableView(
-                        "No plan for today",
-                        systemImage: "sun.max",
-                        description: Text("Today’s plan will appear here.")
-                    )
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    NavigationLink("Retrospective") {
-                        RetrospectiveView()
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    NavigationLink("Notes") {
-                        NotesListView()
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Add note") {
-                        quickNoteContent = ""
-                        showAddNoteSheet = true
-                    }
-                    .keyboardShortcut("n", modifiers: [.command, .shift])
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Export…") {
-                        ExportService.exportToCSV(modelContext: modelContext)
-                    }
-                }
-            }
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detailContent
         }
         .sheet(isPresented: $showAddNoteSheet) {
             AddNoteView(content: $quickNoteContent) {
@@ -76,6 +56,99 @@ struct ContentView: View {
         }
     }
 
+    private var sidebar: some View {
+        List(selection: $sidebarSelection) {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sun.max.fill")
+                            .font(.title2)
+                            .foregroundStyle(.orange)
+                        Text("Telos")
+                            .font(.headline)
+                    }
+                    if streakStore.currentStreak > 0 {
+                        HStack(spacing: 6) {
+                            Image(systemName: "flame.fill")
+                                .foregroundStyle(.orange)
+                            Text("\(streakStore.currentStreak) day streak")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        HStack(spacing: 4) {
+                            ForEach(0 ..< min(5, streakStore.currentStreak), id: \.self) { _ in
+                                Circle()
+                                    .fill(Color.green)
+                                    .frame(width: 6, height: 6)
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section {
+                NavigationLink(value: SidebarItem.today) {
+                    HStack {
+                        Label("Today", systemImage: "sun.max")
+                        Spacer()
+                        if let today = today, !today.sortedTopLevelTasks.isEmpty {
+                            Text("\(today.sortedTopLevelTasks.count)")
+                                .font(.caption)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.quaternary, in: Capsule())
+                        }
+                    }
+                }
+                NavigationLink(value: SidebarItem.notes) {
+                    Label("Notes", systemImage: "note.text")
+                }
+                NavigationLink(value: SidebarItem.retrospective) {
+                    Label("Retrospective", systemImage: "arrow.triangle.2.circlepath")
+                }
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        Group {
+            switch sidebarSelection ?? .today {
+            case .today:
+                if let today = today {
+                    DayPlanView(planDay: today)
+                } else {
+                    ContentUnavailableView(
+                        "No plan for today",
+                        systemImage: "sun.max",
+                        description: Text("Today’s plan will appear here.")
+                    )
+                }
+            case .notes:
+                NotesListView()
+            case .retrospective:
+                RetrospectiveView()
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Add note") {
+                    quickNoteContent = ""
+                    showAddNoteSheet = true
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Export…") {
+                    ExportService.exportToCSV(modelContext: modelContext)
+                }
+            }
+        }
+    }
+
     private func saveQuickNote() {
         let content = quickNoteContent.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return }
@@ -94,91 +167,194 @@ struct DayPlanView: View {
     @State private var newTaskTitle = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            if timerStore.activeTaskID != nil {
-                HStack(spacing: 12) {
-                    Image(systemName: "timer")
-                        .foregroundStyle(.orange)
-                    Text(timerStore.activeTaskTitle ?? "Task")
-                        .lineLimit(1)
-                        .fontWeight(.medium)
-                    Text(activeTimerText)
-                        .font(.title2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Stop") {
-                        timerStore.stopAndRecord(modelContext: modelContext)
-                        streakStore.recordUsage()
-                    }
-                    .buttonStyle(.borderedProminent)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                header
+                if timerStore.activeTaskID != nil {
+                    activeTaskCard
                 }
-                .padding(12)
-                .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .top)),
-                    removal: .opacity.combined(with: .move(edge: .top))
-                ))
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(planDay.date, style: .date)
-                    .font(.title2)
-                if streakStore.currentStreak > 0 {
-                    Text("\(streakStore.currentStreak) day streak")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                addTaskBar
+                if planDay.sortedTopLevelTasks.isEmpty {
+                    emptyState
+                } else {
+                    matrixSection
                 }
             }
-
-            HStack(spacing: 10) {
-                TextField("New task", text: $newTaskTitle)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { addTask() }
-                Button("Add task") { addTask() }
-                    .buttonStyle(.bordered)
-            }
-
-            if planDay.sortedTopLevelTasks.isEmpty {
-                Text("No tasks yet. Add one above.")
-                    .foregroundStyle(.secondary)
-            } else {
-                List {
-                    ForEach(EisenhowerQuadrant.allCases) { q in
-                        Section {
-                            ForEach(planDay.topLevelTasks(in: q)) { task in
-                                TaskRowView(task: task, timerStore: timerStore)
-                            }
-                        } header: {
-                            HStack(spacing: 6) {
-                                Text(q.fullTitle)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                if !planDay.topLevelTasks(in: q).isEmpty {
-                                    Text("(\(planDay.topLevelTasks(in: q).count))")
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-                .listStyle(.inset)
-            }
-
-            Spacer(minLength: 0)
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding()
-        .navigationTitle("Today")
+        .background(.regularMaterial.opacity(0.3))
         .animation(.easeInOut(duration: 0.28), value: timerStore.activeTaskID != nil)
     }
 
-    /// Subscribes to countUpTick when count-up so the bar re-renders every second.
-    private var activeTimerText: String {
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(planDay.date, style: .date)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                if streakStore.currentStreak > 0 {
+                    Text("Day \(streakStore.currentStreak)")
+                        .font(.subheadline)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.quaternary, in: Capsule())
+                }
+            }
+            let count = planDay.sortedTopLevelTasks.count
+            Text(count == 0
+                 ? "Add tasks to plan your day."
+                 : "You have \(count) task\(count == 1 ? "" : "s") today. Keep up the momentum!")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var activeTaskCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Circle()
+                    .fill(.blue)
+                    .frame(width: 8, height: 8)
+                Text("Active Task")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+            }
+            Text(timerStore.activeTaskTitle ?? "Task")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .lineLimit(1)
+            Text(activeTaskSubtitle)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            HStack(alignment: .firstTextBaseline, spacing: 16) {
+                Text(activeTimerDisplay)
+                    .font(.system(size: 42, weight: .light, design: .rounded))
+                    .monospacedDigit()
+                Spacer()
+                if totalTodayFormatted != nil {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Total today")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text(totalTodayFormatted ?? "0m")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
+                }
+            }
+            HStack(spacing: 10) {
+                Button("Stop") {
+                    timerStore.stopAndRecord(modelContext: modelContext)
+                    streakStore.recordUsage()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(.blue.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private var activeTaskSubtitle: String {
+        if timerStore.isCountUp {
+            return "Focus mode · Count up"
+        }
+        return "Countdown · \(timerStore.formattedRemaining) left"
+    }
+
+    private var activeTimerDisplay: String {
         if timerStore.isCountUp {
             _ = timerStore.countUpTick
-            return "\(timerStore.formattedElapsed) elapsed"
+            return timerStore.formattedElapsed
         }
-        return "\(timerStore.formattedRemaining) left"
+        return timerStore.formattedRemaining
+    }
+
+    private var totalTodayFormatted: String? {
+        let total = totalTodaySeconds
+        guard total > 0 else { return nil }
+        let h = Int(total) / 3600
+        let m = (Int(total) % 3600) / 60
+        if h > 0 {
+            return "\(h)h \(m)m"
+        }
+        return "\(m)m"
+    }
+
+    private var totalTodaySeconds: Double {
+        let fromTasks = planDay.tasks.reduce(0.0) { $0 + $1.timeSpentSeconds }
+        guard timerStore.isCountUp, timerStore.activeTaskID != nil else { return fromTasks }
+        guard let id = timerStore.activeTaskID,
+              let task = modelContext.model(for: id) as? PlanTask,
+              let day = task.planDay, Calendar.current.isDateInToday(day.date) else { return fromTasks }
+        return fromTasks + timerStore.countUpElapsedSeconds
+    }
+
+    private var addTaskBar: some View {
+        HStack(spacing: 10) {
+            TextField("New task", text: $newTaskTitle)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { addTask() }
+            Button("+ New Task") { addTask() }
+                .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var emptyState: some View {
+        Text("No tasks yet. Add one above.")
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 20)
+    }
+
+    private var matrixSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(EisenhowerQuadrant.allCases) { q in
+                quadrantCard(quadrant: q)
+            }
+        }
+    }
+
+    private func quadrantCard(quadrant q: EisenhowerQuadrant) -> some View {
+        let tasks = planDay.topLevelTasks(in: q)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: q.systemImage)
+                    .font(.body)
+                    .foregroundStyle(q.accentColor)
+                Text(q.shortTitle)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                if !tasks.isEmpty {
+                    Text("\(tasks.count)")
+                        .font(.caption)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                }
+            }
+            if tasks.isEmpty {
+                Text("No tasks")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 4)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(tasks) { task in
+                        TaskRowView(task: task, timerStore: timerStore)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func addTask() {
