@@ -124,11 +124,15 @@ final class TimerStore {
         return task.persistentModelID == id
     }
 
-    /// Formatted time remaining for countdown (e.g. "24:30").
+    /// Formatted time remaining for countdown (hh:mm:ss when >= 1 hour, else mm:ss).
     var formattedRemaining: String {
         let total = Int(countdownRemainingSeconds.rounded())
-        let m = total / 60
+        let h = total / 3600
+        let m = (total % 3600) / 60
         let s = total % 60
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        }
         return String(format: "%d:%02d", m, s)
     }
 
@@ -138,11 +142,15 @@ final class TimerStore {
         return Date().timeIntervalSince(start)
     }
 
-    /// Formatted elapsed for count-up (e.g. "12:34").
+    /// Formatted elapsed for count-up (hh:mm:ss when >= 1 hour, else mm:ss).
     var formattedElapsed: String {
         let total = Int(countUpElapsedSeconds.rounded())
-        let m = total / 60
+        let h = total / 3600
+        let m = (total % 3600) / 60
         let s = total % 60
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        }
         return String(format: "%d:%02d", m, s)
     }
 

@@ -14,6 +14,7 @@ struct TaskRowView: View {
     @State private var editedTitle = ""
     @FocusState private var isTitleFieldFocused: Bool
     @State private var showCompleteSubtasksAlert = false
+    @State private var showCustomTimerSheet = false
 
     private var hasIncompleteSubtasks: Bool {
         !task.subtasks.isEmpty && !task.subtasks.allSatisfy(\.isCompleted)
@@ -124,6 +125,11 @@ struct TaskRowView: View {
                                     }
                                     .disabled(task.isCompleted)
                                 }
+                                Button("Custom…") {
+                                    guard !task.isCompleted else { return }
+                                    showCustomTimerSheet = true
+                                }
+                                .disabled(task.isCompleted)
                             }
                         } label: {
                             Image(systemName: "play.circle")
@@ -191,6 +197,17 @@ struct TaskRowView: View {
                 .padding(.vertical, 4)
             }
         }
+        .sheet(isPresented: $showCustomTimerSheet) {
+            CustomTimerSheet(
+                onStart: { totalMinutes in
+                    timerStore.startCountdown(task: task, durationMinutes: totalMinutes, modelContext: modelContext)
+                    streakStore.recordUsage()
+                    showCustomTimerSheet = false
+                },
+                onCancel: { showCustomTimerSheet = false }
+            )
+            .frame(minWidth: 280, minHeight: 180)
+        }
         .alert("Complete subtasks first", isPresented: $showCompleteSubtasksAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -252,5 +269,65 @@ struct TaskRowView: View {
         try? modelContext.save()
         newSubtaskTitle = ""
         isAddingSubtask = false
+    }
+}
+
+// MARK: - Custom timer sheet
+struct CustomTimerSheet: View {
+    var onStart: (Int) -> Void
+    var onCancel: () -> Void
+
+    @State private var hours: Int = 0
+    @State private var minutes: Int = 30
+
+    private var totalMinutes: Int { hours * 60 + minutes }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Custom countdown")
+                .font(.headline)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                HStack(spacing: 6) {
+                    Text("Hours")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Picker("Hours", selection: $hours) {
+                        ForEach(0 ..< 25, id: \.self) { h in
+                            Text("\(h)").tag(h)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 60)
+                }
+                HStack(spacing: 6) {
+                    Text("Min")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Picker("Minutes", selection: $minutes) {
+                        ForEach(0 ..< 60, id: \.self) { m in
+                            Text("\(m)").tag(m)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 60)
+                }
+            }
+            Text(totalMinutes == 0 ? "Set duration" : "Total: \(hours):\(String(format: "%02d", minutes))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Cancel") { onCancel() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Start") {
+                    guard totalMinutes > 0 else { return }
+                    onStart(totalMinutes)
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .disabled(totalMinutes <= 0)
+            }
+        }
+        .padding(20)
     }
 }
