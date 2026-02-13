@@ -322,7 +322,7 @@ struct DayPlanView: View {
     }
 
     private func quadrantCard(quadrant q: EisenhowerQuadrant) -> some View {
-        let tasks = planDay.topLevelTasks(in: q)
+        let tasks = planDay.topLevelTasksForDisplay(in: q)
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: q.systemImage)

@@ -117,7 +117,7 @@ struct TaskRowView: View {
 
             if !task.subtasks.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(task.sortedSubtasks) { subtask in
+                    ForEach(task.subtasksForDisplay) { subtask in
                         TaskRowView(task: subtask, timerStore: timerStore)
                             .padding(.leading, 24)
                     }

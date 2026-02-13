@@ -37,6 +37,14 @@ final class PlanDay {
         sortedTopLevelTasks.filter { $0.quadrant == quadrant }
     }
 
+    /// Top-level tasks in the quadrant ordered for display: incomplete first, then completed (at bottom); within each group by sortOrder.
+    func topLevelTasksForDisplay(in quadrant: EisenhowerQuadrant) -> [PlanTask] {
+        topLevelTasks(in: quadrant).sorted { t1, t2 in
+            if t1.isCompleted != t2.isCompleted { return !t1.isCompleted }
+            return t1.sortOrder < t2.sortOrder
+        }
+    }
+
     /// Calendar day (year, month, day) for equality.
     static func isSameCalendarDay(_ a: Date, _ b: Date, calendar: Calendar = .current) -> Bool {
         calendar.isDate(a, inSameDayAs: b)

@@ -99,4 +99,12 @@ final class PlanTask {
     var sortedSubtasks: [PlanTask] {
         subtasks.sorted { $0.sortOrder < $1.sortOrder }
     }
+
+    /// Subtasks ordered for display: incomplete first, then completed (at bottom); within each group by sortOrder.
+    var subtasksForDisplay: [PlanTask] {
+        sortedSubtasks.sorted { t1, t2 in
+            if t1.isCompleted != t2.isCompleted { return !t1.isCompleted }
+            return t1.sortOrder < t2.sortOrder
+        }
+    }
 }
