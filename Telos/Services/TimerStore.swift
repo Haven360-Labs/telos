@@ -22,6 +22,22 @@ final class TimerStore {
 
     private var timer: Timer?
     private let calendar = Calendar.current
+    /// Observers for sleep notifications; kept so we can remove them in deinit.
+    private var sleepObservers: [NSObjectProtocol] = []
+
+    init() {
+        let center = NSWorkspace.shared.notificationCenter
+        let handler: (Notification) -> Void = { [weak self] _ in
+            DispatchQueue.main.async { self?.pause() }
+        }
+        sleepObservers.append(center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main, using: handler))
+        sleepObservers.append(center.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main, using: handler))
+    }
+
+    deinit {
+        let center = NSWorkspace.shared.notificationCenter
+        sleepObservers.forEach { center.removeObserver($0) }
+    }
 
     /// Display title for the active task (e.g. "Task name" or "Parent → Subtask").
     var activeTaskTitle: String? {
