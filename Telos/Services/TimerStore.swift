@@ -156,18 +156,25 @@ final class TimerStore {
         guard isRunning, countdownRemainingSeconds > 0 else { return }
         countdownRemainingSeconds -= 1
         if countdownRemainingSeconds <= 0 {
-            // Countdown finished: play alert and record full duration and clear
+            // Countdown finished: play alert, record duration, then switch to count-up for same task
             playCountdownFinishedSound()
             if let id = activeTaskID,
                let task = modelContext.model(for: id) as? PlanTask {
                 task.timeSpentSeconds += countdownTotalSeconds
                 try? modelContext.save()
+                // Keep same task active; switch to count-up so user can continue until they mark complete
+                countUpStartDate = Date()
+                countdownTotalSeconds = 0
+                countdownRemainingSeconds = 0
+                isCountUp = true
+                countUpTick = 0
+            } else {
+                timer?.invalidate()
+                timer = nil
+                activeTaskID = nil
+                _activeTaskTitle = nil
+                isRunning = false
             }
-            timer?.invalidate()
-            timer = nil
-            activeTaskID = nil
-            _activeTaskTitle = nil
-            isRunning = false
         }
     }
 

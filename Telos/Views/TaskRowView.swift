@@ -56,20 +56,18 @@ struct TaskRowView: View {
                         .focused($isTitleFieldFocused)
                         .onSubmit { commitTitleEdit() }
                         .onExitCommand { cancelTitleEdit() }
+                        .onChange(of: isTitleFieldFocused) { _, focused in
+                            if !focused { commitTitleEdit() }
+                        }
                 } else {
                     Text(task.title)
                         .strikethrough(task.isCompleted)
                         .foregroundStyle(task.isCompleted ? .secondary : .primary)
-                    Button {
-                        editedTitle = task.title
-                        isEditingTitle = true
-                        isTitleFieldFocused = true
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
+                        .onTapGesture(count: 2) {
+                            editedTitle = task.title
+                            isEditingTitle = true
+                            isTitleFieldFocused = true
+                        }
                 }
 
                 if !isEditingTitle && task.parent == nil {
@@ -110,8 +108,8 @@ struct TaskRowView: View {
                             .background(.quaternary, in: Capsule())
                     }
 
-                    if task.timeSpentSeconds > 0 {
-                        Text(formatTimeSpent(task.timeSpentSeconds))
+                    if displayTimeSpentSeconds > 0 {
+                        Text(formatTimeSpentHMS(displayTimeSpentSeconds))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -327,10 +325,27 @@ struct TaskRowView: View {
         try? modelContext.save()
     }
 
-    private func formatTimeSpent(_ seconds: Double) -> String {
-        let m = Int(seconds / 60)
-        let s = Int(seconds.truncatingRemainder(dividingBy: 60))
-        return "\(m)m \(s)s"
+    /// Total time to show: for parent tasks, own time + sum of subtasks; otherwise own time only.
+    private var displayTimeSpentSeconds: Double {
+        guard task.parent == nil, !task.subtasks.isEmpty else {
+            return task.timeSpentSeconds
+        }
+        return task.timeSpentSeconds + task.subtasks.reduce(0) { $0 + $1.timeSpentSeconds }
+    }
+
+    /// Format seconds as "Xh Ym Zs", "Ym Zs", or "Zs".
+    private func formatTimeSpentHMS(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if h > 0 {
+            return "\(h)h \(m)m \(s)s"
+        }
+        if m > 0 {
+            return "\(m)m \(s)s"
+        }
+        return "\(s)s"
     }
 
     private func moveSubtasks(from sourceIndex: Int, to destinationIndex: Int) {
