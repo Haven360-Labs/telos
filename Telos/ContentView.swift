@@ -176,6 +176,7 @@ struct DayPlanView: View {
     @Environment(StreakStore.self) private var streakStore
     @State private var newTaskTitle = ""
     @State private var newTaskQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
+    @State private var editingTaskId: PersistentIdentifier?
 
     var body: some View {
         ScrollView {
@@ -194,6 +195,11 @@ struct DayPlanView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                editingTaskId = nil
+            }
+        )
         .background(.regularMaterial.opacity(0.3))
         .animation(.easeInOut(duration: 0.28), value: timerStore.activeTaskID != nil)
     }
@@ -402,7 +408,7 @@ struct DayPlanView: View {
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
-                        TaskRowView(task: task, timerStore: timerStore)
+                        TaskRowView(task: task, timerStore: timerStore, editingTaskId: $editingTaskId)
                             .draggable(TaskDragPayload(quadrantRaw: q.rawValue, sourceIndex: index))
                             .dropDestination(for: TaskDragPayload.self) { payloads, _ in
                                 guard let payload = payloads.first,

@@ -17,6 +17,7 @@ struct TaskRowView: View {
 
     @Bindable var task: PlanTask
     var timerStore: TimerStore
+    @Binding var editingTaskId: PersistentIdentifier?
     @Environment(\.modelContext) private var modelContext
     @Environment(StreakStore.self) private var streakStore
     @State private var isAddingSubtask = false
@@ -57,7 +58,9 @@ struct TaskRowView: View {
                         .onSubmit { commitTitleEdit() }
                         .onExitCommand { cancelTitleEdit() }
                         .onChange(of: isTitleFieldFocused) { _, focused in
-                            if !focused { commitTitleEdit() }
+                            if !focused {
+                                DispatchQueue.main.async { commitTitleEdit() }
+                            }
                         }
                 } else {
                     Text(task.title)
@@ -67,6 +70,7 @@ struct TaskRowView: View {
                             editedTitle = task.title
                             isEditingTitle = true
                             isTitleFieldFocused = true
+                            editingTaskId = task.persistentModelID
                         }
                 }
 
@@ -188,7 +192,7 @@ struct TaskRowView: View {
             if !task.subtasks.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(task.subtasksForDisplay.enumerated()), id: \.element.id) { index, subtask in
-                        TaskRowView(task: subtask, timerStore: timerStore)
+                        TaskRowView(task: subtask, timerStore: timerStore, editingTaskId: $editingTaskId)
                             .padding(.leading, 24)
                             .draggable(SubtaskDragPayload(parentIdHash: task.persistentModelID.hashValue, sourceIndex: index))
                             .dropDestination(for: SubtaskDragPayload.self) { payloads, _ in
@@ -233,6 +237,11 @@ struct TaskRowView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Complete all subtasks before marking this task as done.")
+        }
+        .onChange(of: editingTaskId) { _, newValue in
+            if newValue != task.persistentModelID && isEditingTitle {
+                commitTitleEdit()
+            }
         }
     }
 
@@ -290,6 +299,7 @@ struct TaskRowView: View {
     }
 
     private func commitTitleEdit() {
+        guard isEditingTitle else { return }
         let trimmed = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             task.title = trimmed
@@ -298,11 +308,13 @@ struct TaskRowView: View {
         }
         isEditingTitle = false
         isTitleFieldFocused = false
+        editingTaskId = nil
     }
 
     private func cancelTitleEdit() {
         isEditingTitle = false
         isTitleFieldFocused = false
+        editingTaskId = nil
     }
 
     private func deleteTask() {
