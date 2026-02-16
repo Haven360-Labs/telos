@@ -58,13 +58,15 @@ struct ContentView: View {
                 modelContainer: modelContext.container
             )
             dayStore.ensureTodayExists(modelContext: modelContext)
+            dayStore.scheduleMorningReminder()
             streakStore.recordUsage()
             dayStore.showEndOfDayReminderIfNeeded(modelContext: modelContext)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWorkspace.didWakeNotification)) { _ in
-            dayStore.showMorningReminderIfNeeded(modelContext: modelContext)
+            dayStore.scheduleMorningReminder()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            dayStore.scheduleMorningReminder()
             dayStore.showEndOfDayReminderIfNeeded(modelContext: modelContext)
         }
         .onChange(of: scenePhase) { _, newPhase in

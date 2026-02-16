@@ -5,7 +5,6 @@ import SwiftData
 @Observable
 final class DayStore {
     private let calendar = Calendar.current
-    private let userDefaultsKeyLastReminderDate = "telos.lastMorningReminderDate"
     private let userDefaultsKeyFirstLaunchToday = "telos.firstLaunchToday"
     private let userDefaultsKeyLastEndOfDayReminderDate = "telos.lastEndOfDayReminderDate"
     private let userDefaultsKeyEndOfDayReminderHour = "telos.endOfDayReminderHour"
@@ -56,26 +55,25 @@ final class DayStore {
         try? modelContext.save()
     }
 
-    /// Call when app becomes active or on wake: show at most one morning reminder per day.
-    func showMorningReminderIfNeeded(modelContext: ModelContext) {
-        let today = calendar.startOfDay(for: Date())
-        let defaults = UserDefaults.standard
-        if let last = defaults.object(forKey: userDefaultsKeyLastReminderDate) as? Date,
-           calendar.isDate(last, inSameDayAs: today) {
-            return
-        }
-        defaults.set(today, forKey: userDefaultsKeyLastReminderDate)
-        requestMorningReminderNotification()
-    }
+    /// Fixed identifier for the scheduled morning notification so we can replace or remove it.
+    private static let morningScheduledIdentifier = "telos.morning.scheduled"
 
-    private func requestMorningReminderNotification() {
+    /// Call when app becomes active: keep the scheduled morning reminder in sync with settings.
+    func scheduleMorningReminder() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.morningScheduledIdentifier])
+        guard AppNotificationSettings.morningReminderEnabled else { return }
+        let hour = AppNotificationSettings.morningReminderHour
+        let minute = AppNotificationSettings.morningReminderMinute
+        var components = DateComponents()
+        components.hour = hour
+        components.minute = minute
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
         let content = UNMutableNotificationContent()
         content.title = "Good morning"
         content.body = "Review your day plan in Telos."
         content.sound = .default
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.5, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "telos.morning-\(UUID().uuidString)",
+            identifier: Self.morningScheduledIdentifier,
             content: content,
             trigger: trigger
         )
@@ -85,6 +83,7 @@ final class DayStore {
     /// Call when app becomes active or on appear: show at most one end-of-day reminder per day
     /// if current time is at or past the configured end-of-day time and today has incomplete tasks.
     func showEndOfDayReminderIfNeeded(modelContext: ModelContext) {
+        guard AppNotificationSettings.endOfDayReminderEnabled else { return }
         let today = calendar.startOfDay(for: Date())
         let now = Date()
         let hour = UserDefaults.standard.object(forKey: userDefaultsKeyEndOfDayReminderHour) as? Int ?? defaultEndOfDayHour

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import AppKit
+import UserNotifications
 
 /// Manages the single active task and its timer (countdown or count-up). Only one task (or subtask) can be active at a time.
 @Observable
@@ -154,6 +155,20 @@ final class TimerStore {
         }
     }
 
+    private func showCountdownFinishedNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Timer finished"
+        content.body = _activeTaskTitle ?? "Your countdown has reached zero."
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "telos.countdown-finished-\(UUID().uuidString)",
+            content: content,
+            trigger: trigger
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
     private func scheduleTick(modelContext: ModelContext) {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -172,8 +187,11 @@ final class TimerStore {
         guard isRunning, countdownRemainingSeconds > 0 else { return }
         countdownRemainingSeconds -= 1
         if countdownRemainingSeconds <= 0 {
-            // Countdown finished: play alert, record duration, then switch to count-up for same task
+            // Countdown finished: play alert, show system notification (if enabled), record duration, then switch to count-up for same task
             playCountdownFinishedSound()
+            if AppNotificationSettings.countdownFinishedEnabled {
+                showCountdownFinishedNotification()
+            }
             if let id = activeTaskID,
                let task = modelContext.model(for: id) as? PlanTask {
                 task.timeSpentSeconds += countdownTotalSeconds
