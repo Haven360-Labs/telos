@@ -26,6 +26,7 @@ struct ContentView: View {
     @Environment(TimerStore.self) private var timerStore
     @Environment(StreakStore.self) private var streakStore
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \PlanDay.date, order: .reverse) private var days: [PlanDay]
     @State private var sidebarSelection: SidebarItem? = .today
     @State private var showAddNoteSheet = false
@@ -65,6 +66,22 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             dayStore.showEndOfDayReminderIfNeeded(modelContext: modelContext)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                saveModelContextIfNeeded()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            timerStore.stopAndRecord(modelContext: modelContext)
+            saveModelContextIfNeeded()
+        }
+    }
+
+    /// Persists SwiftData changes to local storage. Call on background and before quit.
+    private func saveModelContextIfNeeded() {
+        if modelContext.hasChanges {
+            try? modelContext.save()
         }
     }
 
