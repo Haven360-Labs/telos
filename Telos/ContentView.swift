@@ -17,6 +17,7 @@ private enum SidebarItem: String, CaseIterable, Identifiable {
     case today = "Today"
     case notes = "Notes"
     case retrospective = "Retrospective"
+    case settings = "Settings"
     var id: String { rawValue }
 }
 
@@ -111,6 +112,9 @@ struct ContentView: View {
                 NavigationLink(value: SidebarItem.retrospective) {
                     Label("Retrospective", systemImage: "arrow.triangle.2.circlepath")
                 }
+                NavigationLink(value: SidebarItem.settings) {
+                    Label("Settings", systemImage: "gearshape")
+                }
             }
         }
         .listStyle(.sidebar)
@@ -135,6 +139,8 @@ struct ContentView: View {
                 NotesListView()
             case .retrospective:
                 RetrospectiveView()
+            case .settings:
+                SettingsView()
             }
         }
         .toolbar {

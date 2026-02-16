@@ -143,6 +143,9 @@ struct MenuBarView: View {
             Button("Open Telos") {
                 NSApplication.shared.activate(ignoringOtherApps: true)
             }
+            Button("Quit") {
+                NSApplication.shared.terminate(nil)
+            }
         }
         .padding()
         .frame(width: 280)

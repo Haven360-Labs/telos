@@ -23,6 +23,8 @@
 		A1000014 /* RetrospectiveEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* RetrospectiveEntry.swift */; };
 		A1000015 /* RetrospectiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* RetrospectiveView.swift */; };
 		A1000016 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016 /* StatusBarController.swift */; };
+		A1000017 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* SettingsView.swift */; };
+		BB47052E2F407BE500092F83 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB47052D2F407BE500092F83 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +45,8 @@
 		A2000014 /* RetrospectiveEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrospectiveEntry.swift; sourceTree = "<group>"; };
 		A2000015 /* RetrospectiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrospectiveView.swift; sourceTree = "<group>"; };
 		A2000016 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
+		A2000017 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		BB47052D2F407BE500092F83 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,6 +63,7 @@
 		A4000000 = {
 			isa = PBXGroup;
 			children = (
+				BB47052D2F407BE500092F83 /* Assets.xcassets */,
 				A4000001 /* Telos */,
 				A4000002 /* Products */,
 			);
@@ -115,6 +120,7 @@
 				A2000009 /* MenuBarLabelView.swift */,
 				A2000011 /* NotesListView.swift */,
 				A2000015 /* RetrospectiveView.swift */,
+				A2000017 /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -172,6 +178,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB47052E2F407BE500092F83 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -198,6 +205,7 @@
 				A1000014 /* RetrospectiveEntry.swift in Sources */,
 				A1000015 /* RetrospectiveView.swift in Sources */,
 				A1000016 /* StatusBarController.swift in Sources */,
+				A1000017 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -258,6 +266,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 9NAY8223BK;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -283,6 +292,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 9NAY8223BK;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

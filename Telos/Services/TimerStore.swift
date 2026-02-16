@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import AppKit
 
 /// Manages the single active task and its timer (countdown or count-up). Only one task (or subtask) can be active at a time.
 @Observable
@@ -120,6 +121,23 @@ final class TimerStore {
         isRunning = false
     }
 
+    private func playCountdownFinishedSound() {
+        DispatchQueue.main.async {
+            let name = UserDefaults.standard.string(forKey: AppSoundSettings.countdownSoundKey)
+            if let name = name, !name.isEmpty, name != "None" {
+                if let sound = NSSound(named: name) {
+                    sound.play()
+                    return
+                }
+            }
+            if let sound = NSSound(named: AppSoundSettings.defaultSoundName) {
+                sound.play()
+            } else {
+                NSSound.beep()
+            }
+        }
+    }
+
     private func scheduleTick(modelContext: ModelContext) {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -138,7 +156,8 @@ final class TimerStore {
         guard isRunning, countdownRemainingSeconds > 0 else { return }
         countdownRemainingSeconds -= 1
         if countdownRemainingSeconds <= 0 {
-            // Countdown finished: record full duration and clear
+            // Countdown finished: play alert and record full duration and clear
+            playCountdownFinishedSound()
             if let id = activeTaskID,
                let task = modelContext.model(for: id) as? PlanTask {
                 task.timeSpentSeconds += countdownTotalSeconds

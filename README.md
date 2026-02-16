@@ -13,6 +13,12 @@ Mac menu bar–first day-planning app. Native Swift (SwiftUI + SwiftData).
 # Build (quality gate for beads)
 xcodebuild -scheme Telos -configuration Debug build
 
+
+xcodebuild -scheme Telos -destination 'platform=macOS' -configuration Release build
+
+open ~/Library/Developer/Xcode/DerivedData/
+
+
 # Run from Xcode
 open Telos.xcodeproj
 # Then Product → Run (⌘R)
