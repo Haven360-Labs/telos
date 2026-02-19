@@ -24,6 +24,11 @@
 		A1000015 /* RetrospectiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* RetrospectiveView.swift */; };
 		A1000016 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016 /* StatusBarController.swift */; };
 		A1000017 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* SettingsView.swift */; };
+		A1000018 /* Challenge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000018 /* Challenge.swift */; };
+		A1000019 /* ChallengeDayProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000019 /* ChallengeDayProgress.swift */; };
+		A1000020 /* ChallengeRetrospective.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000020 /* ChallengeRetrospective.swift */; };
+		A1000021 /* ChallengeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000021 /* ChallengeListView.swift */; };
+		A1000022 /* ChallengeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000022 /* ChallengeDetailView.swift */; };
 		BB47052E2F407BE500092F83 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB47052D2F407BE500092F83 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -46,6 +51,11 @@
 		A2000015 /* RetrospectiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrospectiveView.swift; sourceTree = "<group>"; };
 		A2000016 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
 		A2000017 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A2000018 /* Challenge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Challenge.swift; sourceTree = "<group>"; };
+		A2000019 /* ChallengeDayProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeDayProgress.swift; sourceTree = "<group>"; };
+		A2000020 /* ChallengeRetrospective.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeRetrospective.swift; sourceTree = "<group>"; };
+		A2000021 /* ChallengeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeListView.swift; sourceTree = "<group>"; };
+		A2000022 /* ChallengeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeDetailView.swift; sourceTree = "<group>"; };
 		BB47052D2F407BE500092F83 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -98,6 +108,9 @@
 				A2000006 /* PlanTask.swift */,
 				A2000010 /* PlanNote.swift */,
 				A2000014 /* RetrospectiveEntry.swift */,
+				A2000018 /* Challenge.swift */,
+				A2000019 /* ChallengeDayProgress.swift */,
+				A2000020 /* ChallengeRetrospective.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -121,6 +134,8 @@
 				A2000011 /* NotesListView.swift */,
 				A2000015 /* RetrospectiveView.swift */,
 				A2000017 /* SettingsView.swift */,
+				A2000021 /* ChallengeListView.swift */,
+				A2000022 /* ChallengeDetailView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -206,6 +221,11 @@
 				A1000015 /* RetrospectiveView.swift in Sources */,
 				A1000016 /* StatusBarController.swift in Sources */,
 				A1000017 /* SettingsView.swift in Sources */,
+				A1000018 /* Challenge.swift in Sources */,
+				A1000019 /* ChallengeDayProgress.swift in Sources */,
+				A1000020 /* ChallengeRetrospective.swift in Sources */,
+				A1000021 /* ChallengeListView.swift in Sources */,
+				A1000022 /* ChallengeDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

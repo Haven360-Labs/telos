@@ -13,9 +13,15 @@ struct TelosApp: App {
     }
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self])
+        let schema = Schema([PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self, Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: false)
-        return try! ModelContainer(for: schema, configurations: [config])
+        do {
+            return try ModelContainer(for: schema, configurations: [config])
+        } catch {
+            assertionFailure("SwiftData container failed: \(error). Using in-memory store.")
+            let fallbackConfig = ModelConfiguration(isStoredInMemoryOnly: true)
+            return (try? ModelContainer(for: schema, configurations: [fallbackConfig]))!
+        }
     }()
 
     var body: some Scene {

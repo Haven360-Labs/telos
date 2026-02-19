@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import AppKit
 
 /// Payload for drag-and-drop reorder of subtasks within a parent.
 private struct SubtaskDragPayload: Transferable, Codable {
@@ -169,6 +170,12 @@ struct TaskRowView: View {
             }
             .padding(.vertical, 4)
             .contextMenu {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(task.title, forType: .string)
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
                 Button {
                     editedTitle = task.title
                     isEditingTitle = true

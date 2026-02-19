@@ -16,6 +16,7 @@ private struct TaskDragPayload: Transferable, Codable {
 private enum SidebarItem: String, CaseIterable, Identifiable {
     case today = "Today"
     case notes = "Notes"
+    case challenge = "Challenge"
     case retrospective = "Retrospective"
     case settings = "Settings"
     var id: String { rawValue }
@@ -151,6 +152,9 @@ struct ContentView: View {
                 NavigationLink(value: SidebarItem.notes) {
                     Label("Notes", systemImage: "note.text")
                 }
+                NavigationLink(value: SidebarItem.challenge) {
+                    Label("Challenge", systemImage: "flag.checkered")
+                }
                 NavigationLink(value: SidebarItem.retrospective) {
                     Label("Retrospective", systemImage: "arrow.triangle.2.circlepath")
                 }
@@ -179,6 +183,8 @@ struct ContentView: View {
                 }
             case .notes:
                 NotesListView()
+            case .challenge:
+                ChallengeListView()
             case .retrospective:
                 RetrospectiveView()
             case .settings:
@@ -329,17 +335,18 @@ struct DayPlanView: View {
                 .foregroundStyle(.tertiary)
             HStack(alignment: .firstTextBaseline, spacing: 16) {
                 Text(activeTimerDisplay)
-                    .font(.system(size: 42, weight: .light, design: .rounded))
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
                     .monospacedDigit()
                 Spacer()
                 if totalTodayFormatted != nil {
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: 4) {
                         Text("Total today")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                        Text(totalTodayFormatted ?? "0m")
                             .font(.subheadline)
-                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                        Text(totalTodayFormatted ?? "0m")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .monospacedDigit()
                     }
                 }
             }
@@ -363,6 +370,18 @@ struct DayPlanView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
+                Button("Complete") {
+                    let activeID = timerStore.activeTaskID
+                    timerStore.stopAndRecord(modelContext: modelContext)
+                    if let id = activeID,
+                       let task = modelContext.model(for: id) as? PlanTask {
+                        task.isCompleted = true
+                        try? modelContext.save()
+                    }
+                    streakStore.recordUsage()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
             }
         }
         .padding(20)
@@ -614,5 +633,5 @@ struct MoveFromPastDaySheet: View {
         .environment(DayStore())
         .environment(TimerStore())
         .environment(StreakStore())
-        .modelContainer(for: [PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self], inMemory: true)
+        .modelContainer(for: [PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self, Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self], inMemory: true)
 }
