@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct MenuBarView: View {
     @Environment(DayStore.self) private var dayStore
@@ -141,7 +142,14 @@ struct MenuBarView: View {
             }
             Divider()
             Button("Open Telos") {
+                NotificationCenter.default.post(name: StatusBarController.openMainWindowNotification, object: nil)
                 NSApplication.shared.activate(ignoringOtherApps: true)
+                for window in NSApplication.shared.windows {
+                    if window.canBecomeMain {
+                        window.makeKeyAndOrderFront(nil)
+                        break
+                    }
+                }
             }
             Button("Quit") {
                 NSApplication.shared.terminate(nil)

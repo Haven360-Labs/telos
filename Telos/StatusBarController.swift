@@ -4,6 +4,8 @@ import SwiftData
 
 /// AppKit status bar item so we can set the button title (timer + task) and have it actually show in the menu bar.
 final class StatusBarController: NSObject {
+    static let openMainWindowNotification = Notification.Name("TelosStatusBarOpenMainWindow")
+
     private static var shared: StatusBarController?
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
@@ -27,7 +29,21 @@ final class StatusBarController: NSObject {
         controller.modelContainer = modelContainer
         controller.setupStatusItem()
         controller.startLabelTimer()
+        controller.observeOpenMainWindow()
         shared = controller
+    }
+
+    private func observeOpenMainWindow() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(closePopoverAndActivate),
+            name: Self.openMainWindowNotification,
+            object: nil
+        )
+    }
+
+    @objc private func closePopoverAndActivate() {
+        popover?.performClose(nil)
     }
 
     private func setupStatusItem() {
