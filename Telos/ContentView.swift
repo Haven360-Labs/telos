@@ -30,10 +30,20 @@ struct ContentView: View {
     @Query(sort: \PlanDay.date, order: .reverse) private var days: [PlanDay]
     @State private var sidebarSelection: SidebarItem? = .today
     @State private var showAddNoteSheet = false
+    @State private var showMoveFromPastDaySheet = false
     @State private var quickNoteContent = ""
+    /// The date whose plan is shown in the day view. Start of day; defaults to today.
+    @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+
+    private var calendar: Calendar { Calendar.current }
 
     private var today: PlanDay? {
-        days.first(where: { Calendar.current.isDateInToday($0.date) })
+        days.first(where: { calendar.isDateInToday($0.date) })
+    }
+
+    /// Plan day for the currently selected date. Ensured to exist when viewing the day (see onAppear in detailContent).
+    private var displayedPlanDay: PlanDay? {
+        days.first(where: { calendar.isDate($0.date, inSameDayAs: selectedDate) })
     }
 
     var body: some View {
@@ -49,6 +59,19 @@ struct ContentView: View {
             }
             .frame(minWidth: 400, minHeight: 200)
             .presentationCornerRadius(12)
+        }
+        .sheet(isPresented: $showMoveFromPastDaySheet) {
+            if let targetDay = displayedPlanDay ?? today {
+                MoveFromPastDaySheet(
+                    dayStore: dayStore,
+                    targetDay: targetDay,
+                    pastDays: days.filter { calendar.startOfDay(for: $0.date) < calendar.startOfDay(for: targetDay.date) },
+                    onDismiss: { showMoveFromPastDaySheet = false }
+                )
+                .environment(\.modelContext, modelContext)
+                .frame(minWidth: 360, minHeight: 320)
+                .presentationCornerRadius(12)
+            }
         }
         .onAppear {
             StatusBarController.install(
@@ -145,8 +168,8 @@ struct ContentView: View {
         Group {
             switch sidebarSelection ?? .today {
             case .today:
-                if let today = today {
-                    DayPlanView(planDay: today)
+                if let planDay = displayedPlanDay {
+                    DayPlanView(planDay: planDay, isSelectedDateToday: calendar.isDate(selectedDate, inSameDayAs: Date()))
                 } else {
                     ContentUnavailableView(
                         "No plan for today",
@@ -162,7 +185,45 @@ struct ContentView: View {
                 SettingsView()
             }
         }
+        .onAppear {
+            if sidebarSelection == .today {
+                _ = dayStore.ensureDayExists(for: selectedDate, modelContext: modelContext)
+            }
+        }
+        .onChange(of: selectedDate) { _, _ in
+            _ = dayStore.ensureDayExists(for: selectedDate, modelContext: modelContext)
+        }
         .toolbar {
+            if sidebarSelection == .today {
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 8) {
+                        Button("Today") {
+                            selectedDate = calendar.startOfDay(for: Date())
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(calendar.isDate(selectedDate, inSameDayAs: Date()))
+                        Button {
+                            selectedDate = calendar.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+                        } label: { Image(systemName: "chevron.left") }
+                        .buttonStyle(.bordered)
+                        Button {
+                            let next = calendar.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                            let todayStart = calendar.startOfDay(for: Date())
+                            let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart)!
+                            if next <= tomorrowStart {
+                                selectedDate = next
+                            }
+                        } label: { Image(systemName: "chevron.right") }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Move from past day…") {
+                        showMoveFromPastDaySheet = true
+                    }
+                    .disabled(displayedPlanDay == nil)
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button("Add note") {
                     quickNoteContent = ""
@@ -190,6 +251,8 @@ struct ContentView: View {
 
 struct DayPlanView: View {
     @Bindable var planDay: PlanDay
+    /// When false, header uses "this day" instead of "today".
+    var isSelectedDateToday: Bool = true
     @Environment(\.modelContext) private var modelContext
     @Environment(TimerStore.self) private var timerStore
     @Environment(StreakStore.self) private var streakStore
@@ -229,7 +292,7 @@ struct DayPlanView: View {
                 Text(planDay.date, style: .date)
                     .font(.title2)
                     .fontWeight(.semibold)
-                if streakStore.currentStreak > 0 {
+                if isSelectedDateToday, streakStore.currentStreak > 0 {
                     Text("Day \(streakStore.currentStreak)")
                         .font(.subheadline)
                         .padding(.horizontal, 8)
@@ -240,7 +303,7 @@ struct DayPlanView: View {
             let count = planDay.sortedTopLevelTasks.count
             Text(count == 0
                  ? "Add tasks to plan your day."
-                 : "You have \(count) task\(count == 1 ? "" : "s") today. Keep up the momentum!")
+                 : "You have \(count) task\(count == 1 ? "" : "s") \(isSelectedDateToday ? "today" : "this day"). Keep up the momentum!")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -476,6 +539,73 @@ struct DayPlanView: View {
         try? modelContext.save()
         newTaskTitle = ""
         streakStore.recordUsage()
+    }
+}
+
+// MARK: - Move from past day
+
+struct MoveFromPastDaySheet: View {
+    var dayStore: DayStore
+    /// Day to move incomplete tasks into (e.g. the currently viewed day).
+    var targetDay: PlanDay
+    var pastDays: [PlanDay]
+    var onDismiss: () -> Void
+    @Environment(\.modelContext) private var modelContext
+
+    /// Past days that have at least one incomplete top-level task, most recent first.
+    private var pastDaysWithIncomplete: [(day: PlanDay, count: Int)] {
+        pastDays
+            .map { day in (day: day, count: day.tasks.filter { $0.parent == nil && !$0.isCompleted && !$0.isArchived }.count) }
+            .filter { $0.count > 0 }
+            .sorted { $0.day.date > $1.day.date }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if pastDaysWithIncomplete.isEmpty {
+                    ContentUnavailableView(
+                        "No incomplete tasks in past days",
+                        systemImage: "calendar.badge.checkmark",
+                        description: Text("Past days have no uncompleted tasks to move.")
+                    )
+                } else {
+                    List {
+                        ForEach(pastDaysWithIncomplete, id: \.day.persistentModelID) { item in
+                            Button {
+                                moveFrom(item.day)
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.day.date, style: .date)
+                                            .font(.body)
+                                        Text("\(item.count) incomplete task\(item.count == 1 ? "" : "s")")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "arrow.right.circle")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .listStyle(.inset)
+                }
+            }
+            .navigationTitle(Calendar.current.isDateInToday(targetDay.date) ? "Move to today" : "Move to this day")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onDismiss() }
+                }
+            }
+        }
+    }
+
+    private func moveFrom(_ sourceDay: PlanDay) {
+        _ = dayStore.moveIncompleteTasks(from: sourceDay.date, to: targetDay, modelContext: modelContext)
+        onDismiss()
     }
 }
 
