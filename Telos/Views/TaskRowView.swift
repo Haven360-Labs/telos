@@ -29,6 +29,7 @@ struct TaskRowView: View {
     @State private var showCompleteSubtasksAlert = false
     @State private var showCustomTimerSheet = false
     @State private var showScheduledDatePopover = false
+    @State private var showTimerPopover = false
 
     private var hasIncompleteSubtasks: Bool {
         !task.subtasks.isEmpty && !task.subtasks.allSatisfy(\.isCompleted)
@@ -123,40 +124,50 @@ struct TaskRowView: View {
 
                     if timerStore.isActive(task: task) {
                         Image(systemName: "timer")
+                            .font(.system(size: 28))
                             .foregroundStyle(.orange)
                     } else {
-                        Menu {
-                            Button {
-                                guard !task.isCompleted else { return }
-                                timerStore.startCountUp(task: task, modelContext: modelContext)
-                                streakStore.recordUsage()
-                            } label: {
-                                Label("Count up", systemImage: "arrow.up.circle")
-                            }
-                            .disabled(task.isCompleted)
-                            Section("Countdown") {
+                        Button {
+                            guard !task.isCompleted else { return }
+                            showTimerPopover = true
+                        } label: {
+                            Image(systemName: "play.circle")
+                                .font(.system(size: 20))
+                                .foregroundStyle(task.isCompleted ? Color.secondary.opacity(0.5) : .secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(task.isCompleted)
+                        .popover(isPresented: $showTimerPopover, arrowEdge: .bottom) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Button {
+                                    timerStore.startCountUp(task: task, modelContext: modelContext)
+                                    streakStore.recordUsage()
+                                    showTimerPopover = false
+                                } label: {
+                                    Label("Count up", systemImage: "arrow.up.circle")
+                                }
+                                .disabled(task.isCompleted)
+                                Divider()
+                                Text("Countdown")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                                 ForEach(TaskRowView.countdownDurations, id: \.self) { minutes in
                                     Button("\(minutes) min") {
-                                        guard !task.isCompleted else { return }
                                         timerStore.startCountdown(task: task, durationMinutes: minutes, modelContext: modelContext)
                                         streakStore.recordUsage()
+                                        showTimerPopover = false
                                     }
                                     .disabled(task.isCompleted)
                                 }
                                 Button("Custom…") {
-                                    guard !task.isCompleted else { return }
                                     showCustomTimerSheet = true
+                                    showTimerPopover = false
                                 }
                                 .disabled(task.isCompleted)
                             }
-                        } label: {
-                            Image(systemName: "play.circle")
-                                .font(.system(size: 36))
-                                .imageScale(.large)
-                                .foregroundStyle(task.isCompleted ? Color.secondary.opacity(0.5) : .secondary)
+                            .padding(12)
+                            .frame(width: 160)
                         }
-                        .menuStyle(.borderlessButton)
-                        .disabled(task.isCompleted)
                     }
 
                     if task.parent == nil {
@@ -164,7 +175,7 @@ struct TaskRowView: View {
                             isAddingSubtask = true
                         } label: {
                             Image(systemName: "plus.circle")
-                                .font(.body)
+                                .font(.system(size: 20))
                         }
                         .buttonStyle(.plain)
                     }
