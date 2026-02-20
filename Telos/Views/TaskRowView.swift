@@ -35,8 +35,8 @@ struct TaskRowView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
                 Button {
                     if !task.isCompleted && hasIncompleteSubtasks {
                         showCompleteSubtasksAlert = true
@@ -151,6 +151,8 @@ struct TaskRowView: View {
                             }
                         } label: {
                             Image(systemName: "play.circle")
+                                .font(.system(size: 36))
+                                .imageScale(.large)
                                 .foregroundStyle(task.isCompleted ? Color.secondary.opacity(0.5) : .secondary)
                         }
                         .menuStyle(.borderlessButton)
@@ -168,7 +170,7 @@ struct TaskRowView: View {
                     }
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
             .contextMenu {
                 Button {
                     NSPasteboard.general.clearContents()
@@ -197,18 +199,25 @@ struct TaskRowView: View {
             }
 
             if !task.subtasks.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(task.subtasksForDisplay.enumerated()), id: \.element.id) { index, subtask in
-                        TaskRowView(task: subtask, timerStore: timerStore, editingTaskId: $editingTaskId)
-                            .padding(.leading, 24)
-                            .draggable(SubtaskDragPayload(parentIdHash: task.persistentModelID.hashValue, sourceIndex: index))
-                            .dropDestination(for: SubtaskDragPayload.self) { payloads, _ in
-                                guard let payload = payloads.first,
-                                      payload.parentIdHash == task.persistentModelID.hashValue,
-                                      payload.sourceIndex != index else { return false }
-                                moveSubtasks(from: payload.sourceIndex, to: index)
-                                return true
-                            } isTargeted: { _ in }
+                        VStack(alignment: .leading, spacing: 0) {
+                            TaskRowView(task: subtask, timerStore: timerStore, editingTaskId: $editingTaskId)
+                                .padding(.leading, 24)
+                                .padding(.vertical, 4)
+                            if index < task.subtasksForDisplay.count - 1 {
+                                Divider()
+                                    .padding(.leading, 24)
+                            }
+                        }
+                        .draggable(SubtaskDragPayload(parentIdHash: task.persistentModelID.hashValue, sourceIndex: index))
+                        .dropDestination(for: SubtaskDragPayload.self) { payloads, _ in
+                            guard let payload = payloads.first,
+                                  payload.parentIdHash == task.persistentModelID.hashValue,
+                                  payload.sourceIndex != index else { return false }
+                            moveSubtasks(from: payload.sourceIndex, to: index)
+                            return true
+                        } isTargeted: { _ in }
                     }
                 }
             }
@@ -227,6 +236,14 @@ struct TaskRowView: View {
                 }
                 .padding(.leading, 32)
                 .padding(.vertical, 4)
+            }
+        }
+        .padding(.vertical, task.parent == nil ? 12 : 0)
+        .padding(.horizontal, task.parent == nil ? 24 : 0)
+        .overlay {
+            if task.parent == nil {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
             }
         }
         .sheet(isPresented: $showCustomTimerSheet) {

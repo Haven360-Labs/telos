@@ -507,7 +507,7 @@ struct DayPlanView: View {
                     .foregroundStyle(.tertiary)
                     .padding(.vertical, 4)
             } else {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 10) {
                     ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
                         TaskRowView(task: task, timerStore: timerStore, editingTaskId: $editingTaskId)
                             .draggable(TaskDragPayload(quadrantRaw: q.rawValue, sourceIndex: index))
@@ -523,7 +523,7 @@ struct DayPlanView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
