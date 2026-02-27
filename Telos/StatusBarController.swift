@@ -3,6 +3,7 @@ import SwiftUI
 import SwiftData
 
 /// AppKit status bar item so we can set the button title (timer + task) and have it actually show in the menu bar.
+@MainActor
 final class StatusBarController: NSObject {
     static let openMainWindowNotification = Notification.Name("TelosStatusBarOpenMainWindow")
 
@@ -67,8 +68,9 @@ final class StatusBarController: NSObject {
 
     private func currentLabelAndIcon() -> (String, String) {
         guard let timerStore = timerStore else { return ("Telos", "sun.max.fill") }
+        let totalToday = formattedTotalTimeToday()
         if timerStore.activeTaskID == nil {
-            return ("Telos", "sun.max.fill")
+            return ("Telos · \(totalToday)", "sun.max.fill")
         }
         let time: String
         if timerStore.isCountUp {
@@ -81,7 +83,36 @@ final class StatusBarController: NSObject {
         let maxTaskLen = 100
         let short = task.count > maxTaskLen ? String(task.prefix(maxTaskLen - 1)) + "…" : task
         let pausedSuffix = timerStore.isPaused ? " (paused)" : ""
-        return ("\(time) · \(short)\(pausedSuffix)", "timer")
+        return ("\(time) · \(short)\(pausedSuffix) · Total: \(totalToday)", "timer")
+    }
+
+    /// Total time logged today (from tasks + current count-up if active task is today). Returns formatted string e.g. "2h 30m" or "45m" or "0m".
+    private func formattedTotalTimeToday() -> String {
+        guard let container = modelContainer else { return "0m" }
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: Date())
+        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart)!
+        var descriptor = FetchDescriptor<PlanDay>(
+            predicate: #Predicate<PlanDay> { day in
+                day.date >= todayStart && day.date < tomorrowStart
+            }
+        )
+        descriptor.fetchLimit = 1
+        guard let planDay = try? context.fetch(descriptor).first else { return "0m" }
+        var totalSeconds = planDay.tasks.reduce(0.0) { $0 + $1.timeSpentSeconds }
+        if timerStore?.isCountUp == true, let activeID = timerStore?.activeTaskID,
+           let task = try? context.model(for: activeID) as? PlanTask,
+           let day = task.planDay, calendar.isDate(day.date, inSameDayAs: Date()) {
+            totalSeconds += timerStore?.countUpElapsedSeconds ?? 0
+        }
+        let total = Int(totalSeconds.rounded())
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        if h > 0 {
+            return "\(h)h \(m)m"
+        }
+        return "\(m)m"
     }
 
     private func startLabelTimer() {

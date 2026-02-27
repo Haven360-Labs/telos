@@ -418,6 +418,19 @@ struct DayPlanView: View {
                         .padding(.vertical, 4)
                         .background(.quaternary, in: Capsule())
                 }
+                Spacer()
+                HStack(spacing: 6) {
+                    Image(systemName: "clock")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                    Text(totalTimeTodayLabel)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                    Text(totalTodayFormattedDisplay)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .monospacedDigit()
+                }
             }
             let count = planDay.sortedTopLevelTasks.count
             Text(count == 0
@@ -426,6 +439,20 @@ struct DayPlanView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var totalTimeTodayLabel: String {
+        isSelectedDateToday ? "Total today:" : "Time logged:"
+    }
+
+    private var totalTodayFormattedDisplay: String {
+        let total = totalTodaySeconds
+        let h = Int(total) / 3600
+        let m = (Int(total) % 3600) / 60
+        if h > 0 {
+            return "\(h)h \(m)m"
+        }
+        return "\(m)m"
     }
 
     private var activeTaskCard: some View {
@@ -454,10 +481,10 @@ struct DayPlanView: View {
                 if totalTodayFormatted != nil {
                     VStack(alignment: .trailing, spacing: 4) {
                         Text("Total today")
-                            .font(.subheadline)
+                            .font(.body)
                             .foregroundStyle(.secondary)
                         Text(totalTodayFormatted ?? "0m")
-                            .font(.title2)
+                            .font(.title)
                             .fontWeight(.semibold)
                             .monospacedDigit()
                     }
