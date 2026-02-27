@@ -11,14 +11,17 @@ final class ChallengeDayProgress {
     /// Whether the user marked this day as done.
     var isCompleted: Bool
     var updatedAt: Date
+    /// Seconds spent on this challenge day (e.g. from "Make task" timer).
+    var timeSpentSeconds: Double = 0
 
     var challenge: Challenge?
 
-    init(dayIndex: Int, notes: String = "", isCompleted: Bool = false, updatedAt: Date = Date(), challenge: Challenge? = nil) {
+    init(dayIndex: Int, notes: String = "", isCompleted: Bool = false, updatedAt: Date = Date(), timeSpentSeconds: Double = 0, challenge: Challenge? = nil) {
         self.dayIndex = dayIndex
         self.notes = notes
         self.isCompleted = isCompleted
         self.updatedAt = updatedAt
+        self.timeSpentSeconds = timeSpentSeconds
         self.challenge = challenge
     }
 }

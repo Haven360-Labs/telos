@@ -73,6 +73,8 @@ final class PlanTask {
 
     var planDay: PlanDay?
     var parent: PlanTask?
+    /// When set, this task was created from "Make task" on a challenge; timer time is also recorded on the challenge's day progress.
+    var linkedChallenge: Challenge?
     @Relationship(deleteRule: .cascade, inverse: \PlanTask.parent)
     var subtasks: [PlanTask] = []
 

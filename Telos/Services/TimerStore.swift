@@ -123,6 +123,7 @@ final class TimerStore {
             }
             if elapsed > 0, let task = modelContext.model(for: id) as? PlanTask {
                 task.timeSpentSeconds += elapsed
+                recordElapsedOnChallengeDay(task: task, elapsed: elapsed, modelContext: modelContext)
                 try? modelContext.save()
             }
         }
@@ -195,6 +196,7 @@ final class TimerStore {
             if let id = activeTaskID,
                let task = modelContext.model(for: id) as? PlanTask {
                 task.timeSpentSeconds += countdownTotalSeconds
+                recordElapsedOnChallengeDay(task: task, elapsed: countdownTotalSeconds, modelContext: modelContext)
                 try? modelContext.save()
                 // Keep same task active; switch to count-up so user can continue until they mark complete
                 countUpStartDate = Date()
@@ -215,6 +217,20 @@ final class TimerStore {
     func isActive(task: PlanTask) -> Bool {
         guard let id = activeTaskID else { return false }
         return task.persistentModelID == id
+    }
+
+    /// When the task was created from "Make task" on a challenge, record elapsed time on that challenge's day progress.
+    private func recordElapsedOnChallengeDay(task: PlanTask, elapsed: TimeInterval, modelContext: ModelContext) {
+        guard let challenge = task.linkedChallenge, elapsed > 0 else { return }
+        guard let dayIndex = challenge.dayIndex(for: Date()) else { return }
+        if let progress = challenge.dayProgress.first(where: { $0.dayIndex == dayIndex }) {
+            progress.timeSpentSeconds += elapsed
+            progress.updatedAt = Date()
+        } else {
+            let progress = ChallengeDayProgress(dayIndex: dayIndex, timeSpentSeconds: elapsed, challenge: challenge)
+            modelContext.insert(progress)
+            challenge.dayProgress.append(progress)
+        }
     }
 
     /// Formatted time remaining for countdown (hh:mm:ss when >= 1 hour, else mm:ss).

@@ -138,6 +138,27 @@ struct ContentView: View {
         try? modelContext.save()
     }
 
+    /// Creates a task on today's plan from the challenge and starts the count-up timer; switches to Today view.
+    private func makeChallengeTask(_ challenge: Challenge) {
+        dayStore.ensureTodayExists(modelContext: modelContext)
+        guard let todayPlan = dayStore.fetchDay(for: Date(), modelContext: modelContext) else { return }
+        let nextOrder = (todayPlan.tasks.filter { $0.parent == nil }.map(\.sortOrder).max() ?? -1) + 1
+        let task = PlanTask(
+            title: challenge.title,
+            sortOrder: nextOrder,
+            planDay: todayPlan,
+            parent: nil,
+            quadrant: .importantUrgent
+        )
+        task.linkedChallenge = challenge
+        modelContext.insert(task)
+        todayPlan.tasks.append(task)
+        try? modelContext.save()
+        timerStore.startCountUp(task: task, modelContext: modelContext)
+        streakStore.recordUsage()
+        sidebarSelection = .today
+    }
+
     private var sidebar: some View {
         List(selection: $sidebarSelection) {
             Section {
@@ -199,7 +220,8 @@ struct ContentView: View {
                     ForEach(activeChallengesToday) { challenge in
                         ActiveChallengeSidebarRow(
                             challenge: challenge,
-                            onMarkToday: { challengeForMarkToday = challenge }
+                            onMarkToday: { challengeForMarkToday = challenge },
+                            onMakeTask: { makeChallengeTask(challenge) }
                         )
                     }
                 }
@@ -287,6 +309,7 @@ struct ContentView: View {
 private struct ActiveChallengeSidebarRow: View {
     let challenge: Challenge
     let onMarkToday: () -> Void
+    let onMakeTask: () -> Void
 
     private let calendar = Calendar.current
 
@@ -327,6 +350,14 @@ private struct ActiveChallengeSidebarRow: View {
             .help(isTodayMarked ? "Today marked" : "Mark today")
         }
         .padding(.vertical, 2)
+        .contextMenu {
+            Button {
+                onMakeTask()
+            } label: {
+                Label("Make task", systemImage: "timer")
+            }
+            .help("Add this challenge as a task on Today and start the timer")
+        }
     }
 }
 
