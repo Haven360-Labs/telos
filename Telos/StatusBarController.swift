@@ -78,7 +78,8 @@ final class StatusBarController: NSObject {
             time = timerStore.formattedRemaining
         }
         let task = timerStore.activeTaskTitle ?? "Task"
-        let short = task.count > 16 ? String(task.prefix(15)) + "…" : task
+        let maxTaskLen = 100
+        let short = task.count > maxTaskLen ? String(task.prefix(maxTaskLen - 1)) + "…" : task
         let pausedSuffix = timerStore.isPaused ? " (paused)" : ""
         return ("\(time) · \(short)\(pausedSuffix)", "timer")
     }

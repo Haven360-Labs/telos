@@ -27,7 +27,7 @@ struct MenuBarLabelView: View {
     }
 
     private func compactTitle(_ title: String) -> String {
-        let maxLen = 16
+        let maxLen = 100
         if title.count <= maxLen { return title }
         return String(title.prefix(maxLen - 1)) + "…"
     }
