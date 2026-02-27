@@ -41,6 +41,18 @@ final class StatusBarController: NSObject {
             name: Self.openMainWindowNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(menuBarLabelLengthDidChange),
+            name: AppMenuBarSettings.menuBarLabelLengthDidChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func menuBarLabelLengthDidChange() {
+        DispatchQueue.main.async { [weak self] in
+            self?.updateButtonLabel()
+        }
     }
 
     @objc private func closePopoverAndActivate() {
@@ -68,8 +80,12 @@ final class StatusBarController: NSObject {
 
     private func currentLabelAndIcon() -> (String, String) {
         guard let timerStore = timerStore else { return ("Telos", "sun.max.fill") }
+        let useShort = AppMenuBarSettings.labelLength == .short
         let totalToday = formattedTotalTimeToday()
         if timerStore.activeTaskID == nil {
+            if useShort {
+                return ("Telos", "sun.max.fill")
+            }
             return ("Telos · \(totalToday)", "sun.max.fill")
         }
         let time: String
@@ -80,10 +96,14 @@ final class StatusBarController: NSObject {
             time = timerStore.formattedRemaining
         }
         let task = timerStore.activeTaskTitle ?? "Task"
-        let maxTaskLen = 100
-        let short = task.count > maxTaskLen ? String(task.prefix(maxTaskLen - 1)) + "…" : task
+        let maxTaskLen = useShort ? 20 : 100
+        let truncatedTask = task.count > maxTaskLen ? String(task.prefix(maxTaskLen - 1)) + "…" : task
+        if useShort {
+            let pausedSuffix = timerStore.isPaused ? " ⏸" : ""
+            return ("\(time) · \(truncatedTask)\(pausedSuffix)", "timer")
+        }
         let pausedSuffix = timerStore.isPaused ? " (paused)" : ""
-        return ("\(time) · \(short)\(pausedSuffix) · Total: \(totalToday)", "timer")
+        return ("\(time) · \(truncatedTask)\(pausedSuffix) · Total: \(totalToday)", "timer")
     }
 
     /// Total time logged today (from tasks + current count-up if active task is today). Returns formatted string e.g. "2h 30m" or "45m" or "0m".

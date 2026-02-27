@@ -44,6 +44,33 @@ enum AppNotificationSettings {
     static let reminderMinuteChoices = [0, 15, 30, 45]
 }
 
+// MARK: - Menu bar label length (UserDefaults)
+enum AppMenuBarSettings {
+    static let labelLengthKey = "telos.menubar.labelLength"
+    static let menuBarLabelLengthDidChangeNotification = Notification.Name("TelosMenuBarLabelLengthDidChange")
+
+    enum LabelLength: String, CaseIterable {
+        case short = "short"
+        case long = "long"
+
+        var displayName: String {
+            switch self {
+            case .short: return "Short"
+            case .long: return "Long"
+            }
+        }
+    }
+
+    static var labelLength: LabelLength {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: labelLengthKey),
+                  let value = LabelLength(rawValue: raw) else { return .long }
+            return value
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: labelLengthKey) }
+    }
+}
+
 // MARK: - Sound preference (UserDefaults)
 enum AppSoundSettings {
     static let countdownSoundKey = "telos.countdownSoundName"
@@ -91,6 +118,7 @@ struct SettingsView: View {
     @AppStorage(AppNotificationSettings.endOfDayReminderHourKey) private var endOfDayReminderHour: Int = 18
     @AppStorage(AppNotificationSettings.endOfDayReminderMinuteKey) private var endOfDayReminderMinute: Int = 0
     @AppStorage(AppSoundSettings.countdownSoundKey) private var countdownSoundName: String = AppSoundSettings.defaultSoundName
+    @AppStorage(AppMenuBarSettings.labelLengthKey) private var menuBarLabelLength: String = AppMenuBarSettings.LabelLength.long.rawValue
 
     var body: some View {
         Form {
@@ -150,6 +178,21 @@ struct SettingsView: View {
                 Text("Timer finished: system notification when a countdown reaches zero. Morning reminder: daily at the set time. Evening reminder: when you open Telos after the set time, if you have incomplete tasks.")
             }
             .onChange(of: morningReminderEnabled) { _, _ in dayStore.scheduleMorningReminder() }
+
+            Section {
+                Picker("Menu bar label", selection: $menuBarLabelLength) {
+                    ForEach(AppMenuBarSettings.LabelLength.allCases, id: \.rawValue) { length in
+                        Text(length.displayName).tag(length.rawValue)
+                    }
+                }
+                .onChange(of: menuBarLabelLength) { _, _ in
+                    NotificationCenter.default.post(name: AppMenuBarSettings.menuBarLabelLengthDidChangeNotification, object: nil)
+                }
+            } header: {
+                Text("Menu bar")
+            } footer: {
+                Text("Short: time and task name only. Long: includes total time today and paused state.")
+            }
 
             Section {
                 Picker("Countdown finished sound", selection: $countdownSoundName) {
