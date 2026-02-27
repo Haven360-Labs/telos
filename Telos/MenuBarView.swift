@@ -12,6 +12,7 @@ struct MenuBarView: View {
     @State private var quickAddTitle = ""
     @State private var quickAddQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
     @State private var showAddNote = false
+    @State private var noteTitle = ""
     @State private var noteContent = ""
 
     private var recentNotes: [PlanNote] { Array(notes.prefix(5)) }
@@ -62,6 +63,11 @@ struct MenuBarView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
+                    Button("Complete") {
+                        completeActiveTask()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
                 }
                 Divider()
             }
@@ -111,11 +117,14 @@ struct MenuBarView: View {
             Text("Notes")
                 .font(.headline)
             Button("Add note") {
+                noteTitle = ""
                 noteContent = ""
                 showAddNote = true
             }
             if showAddNote {
                 VStack(alignment: .leading, spacing: 6) {
+                    TextField("Title", text: $noteTitle)
+                        .textFieldStyle(.roundedBorder)
                     TextField("Note", text: $noteContent, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(2...4)
@@ -132,7 +141,7 @@ struct MenuBarView: View {
                     Button {
                         NSApplication.shared.activate(ignoringOtherApps: true)
                     } label: {
-                        Text(note.preview)
+                        Text(note.displayTitle)
                             .lineLimit(1)
                             .truncationMode(.tail)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,6 +168,17 @@ struct MenuBarView: View {
         .frame(width: 280)
     }
 
+    private func completeActiveTask() {
+        let activeID = timerStore.activeTaskID
+        timerStore.stopAndRecord(modelContext: modelContext)
+        if let id = activeID,
+           let task = modelContext.model(for: id) as? PlanTask {
+            task.isCompleted = true
+            try? modelContext.save()
+        }
+        streakStore.recordUsage()
+    }
+
     private func submitQuickAdd() {
         let title = quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
@@ -177,9 +197,11 @@ struct MenuBarView: View {
     private func submitAddNote() {
         let content = noteContent.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return }
-        let note = PlanNote(content: content)
+        let title = noteTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let note = PlanNote(title: title, content: content)
         modelContext.insert(note)
         try? modelContext.save()
+        noteTitle = ""
         noteContent = ""
         showAddNote = false
         streakStore.recordUsage()

@@ -54,13 +54,13 @@ struct ChallengeDetailView: View {
         .sheet(isPresented: $showEditSheet) {
             EditChallengeSheet(
                 challenge: challenge,
-                onSave: { newTitle, newTotalDays, allowMarkPastDays in
-                    applyEdit(title: newTitle, totalDays: newTotalDays, allowMarkPastDays: allowMarkPastDays)
+                onSave: { newTitle, newDescription, newTotalDays, newRetrospectivePeriodDays, allowMarkPastDays in
+                    applyEdit(title: newTitle, challengeDescription: newDescription, totalDays: newTotalDays, retrospectivePeriodDays: newRetrospectivePeriodDays, allowMarkPastDays: allowMarkPastDays)
                     showEditSheet = false
                 },
                 onCancel: { showEditSheet = false }
             )
-            .frame(minWidth: 400, minHeight: 220)
+            .frame(minWidth: 400, minHeight: 340)
             .presentationCornerRadius(12)
         }
         .toolbar {
@@ -81,14 +81,17 @@ struct ChallengeDetailView: View {
         }
     }
 
-    private func applyEdit(title: String, totalDays: Int, allowMarkPastDays: Bool) {
+    private func applyEdit(title: String, challengeDescription: String, totalDays: Int, retrospectivePeriodDays: Int, allowMarkPastDays: Bool) {
         let newTotal = min(max(totalDays, 1), 365)
         challenge.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        challenge.challengeDescription = challengeDescription.isEmpty ? nil : challengeDescription
+        challenge.retrospectivePeriodDays = retrospectivePeriodDays
         challenge.allowMarkPastDays = allowMarkPastDays
         if newTotal != challenge.totalDays, newTotal < challenge.totalDays {
             let toRemoveProgress = challenge.dayProgress.filter { $0.dayIndex > newTotal }
             for p in toRemoveProgress { modelContext.delete(p) }
-            let newPeriodCount = (newTotal + 13) / 14
+            let period = challenge.effectiveRetrospectivePeriodDays
+            let newPeriodCount = (newTotal + period - 1) / period
             let toRemoveRetro = challenge.retrospectives.filter { $0.periodIndex > newPeriodCount }
             for r in toRemoveRetro { modelContext.delete(r) }
         }
@@ -107,6 +110,11 @@ struct ChallengeDetailView: View {
             Text(challenge.title)
                 .font(.title2)
                 .fontWeight(.semibold)
+            if let desc = challenge.challengeDescription, !desc.isEmpty {
+                Text(desc)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             HStack(spacing: 12) {
                 Text("\(challenge.totalDays) day challenge")
                     .font(.subheadline)
@@ -155,10 +163,11 @@ struct ChallengeDetailView: View {
     }
 
     private var retrospectivesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Biweekly retrospectives")
+        let periodDays = challenge.effectiveRetrospectivePeriodDays
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Retrospectives (every \(periodDays) days)")
                 .font(.headline)
-            Text("Review how the challenge is going every 14 days.")
+            Text("Review how the challenge is going every \(periodDays) days.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ForEach(1...challenge.biweeklyPeriodCount, id: \.self) { periodIndex in
@@ -422,7 +431,7 @@ struct ChallengeRetrospectiveSheet: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Biweekly retrospective")
+            .navigationTitle("Retrospective")
             .onAppear {
                 notes = existingNotes
             }
@@ -455,7 +464,7 @@ private struct PeriodSheetItem: Identifiable {
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self, configurations: config)
-    let challenge = Challenge(title: "Preview challenge", totalDays: 30, startDate: Date())
+    let challenge = Challenge(title: "Preview challenge", challengeDescription: "A sample challenge for preview.", totalDays: 30, startDate: Date())
     container.mainContext.insert(challenge)
     return ChallengeDetailView(challenge: challenge)
         .modelContainer(container)

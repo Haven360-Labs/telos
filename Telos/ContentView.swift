@@ -29,10 +29,10 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \PlanDay.date, order: .reverse) private var days: [PlanDay]
+    @Query(sort: \Challenge.startDate, order: .reverse) private var challenges: [Challenge]
     @State private var sidebarSelection: SidebarItem? = .today
-    @State private var showAddNoteSheet = false
+    @State private var challengeForMarkToday: Challenge?
     @State private var showMoveFromPastDaySheet = false
-    @State private var quickNoteContent = ""
     /// The date whose plan is shown in the day view. Start of day; defaults to today.
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
 
@@ -47,19 +47,17 @@ struct ContentView: View {
         days.first(where: { calendar.isDate($0.date, inSameDayAs: selectedDate) })
     }
 
+    /// Challenges that are active today (today's date is within the challenge range).
+    private var activeChallengesToday: [Challenge] {
+        let todayStart = calendar.startOfDay(for: Date())
+        return challenges.filter { $0.dayIndex(for: todayStart) != nil }
+    }
+
     var body: some View {
         NavigationSplitView {
             sidebar
         } detail: {
             detailContent
-        }
-        .sheet(isPresented: $showAddNoteSheet) {
-            AddNoteView(content: $quickNoteContent) {
-                saveQuickNote()
-                showAddNoteSheet = false
-            }
-            .frame(minWidth: 400, minHeight: 200)
-            .presentationCornerRadius(12)
         }
         .sheet(isPresented: $showMoveFromPastDaySheet) {
             if let targetDay = displayedPlanDay ?? today {
@@ -73,6 +71,22 @@ struct ContentView: View {
                 .frame(minWidth: 360, minHeight: 320)
                 .presentationCornerRadius(12)
             }
+        }
+        .sheet(item: $challengeForMarkToday) { challenge in
+            let dayIndex = challenge.dayIndex(for: Date()) ?? 1
+            let existing = challenge.dayProgress.first { $0.dayIndex == dayIndex }
+            DayProgressSheet(
+                challenge: challenge,
+                dayIndex: dayIndex,
+                existingProgress: existing,
+                onSave: { notes, isCompleted in
+                    saveChallengeDayProgress(challenge: challenge, dayIndex: dayIndex, notes: notes, isCompleted: isCompleted)
+                    challengeForMarkToday = nil
+                },
+                onCancel: { challengeForMarkToday = nil }
+            )
+            .frame(minWidth: 400, minHeight: 260)
+            .presentationCornerRadius(12)
         }
         .onAppear {
             StatusBarController.install(
@@ -109,6 +123,19 @@ struct ContentView: View {
         if modelContext.hasChanges {
             try? modelContext.save()
         }
+    }
+
+    private func saveChallengeDayProgress(challenge: Challenge, dayIndex: Int, notes: String, isCompleted: Bool) {
+        if let existing = challenge.dayProgress.first(where: { $0.dayIndex == dayIndex }) {
+            existing.notes = notes
+            existing.isCompleted = isCompleted
+            existing.updatedAt = Date()
+        } else {
+            let progress = ChallengeDayProgress(dayIndex: dayIndex, notes: notes, isCompleted: isCompleted, challenge: challenge)
+            modelContext.insert(progress)
+            challenge.dayProgress.append(progress)
+        }
+        try? modelContext.save()
     }
 
     private var sidebar: some View {
@@ -160,6 +187,21 @@ struct ContentView: View {
                 }
                 NavigationLink(value: SidebarItem.settings) {
                     Label("Settings", systemImage: "gearshape")
+                }
+            }
+
+            Section("Active challenges") {
+                if activeChallengesToday.isEmpty {
+                    Text("No active challenges today")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    ForEach(activeChallengesToday) { challenge in
+                        ActiveChallengeSidebarRow(
+                            challenge: challenge,
+                            onMarkToday: { challengeForMarkToday = challenge }
+                        )
+                    }
                 }
             }
         }
@@ -231,13 +273,6 @@ struct ContentView: View {
                 }
             }
             ToolbarItem(placement: .primaryAction) {
-                Button("Add note") {
-                    quickNoteContent = ""
-                    showAddNoteSheet = true
-                }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
-            }
-            ToolbarItem(placement: .primaryAction) {
                 Button("Export…") {
                     ExportService.exportToCSV(modelContext: modelContext)
                 }
@@ -245,13 +280,53 @@ struct ContentView: View {
         }
     }
 
-    private func saveQuickNote() {
-        let content = quickNoteContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !content.isEmpty else { return }
-        let note = PlanNote(content: content)
-        modelContext.insert(note)
-        try? modelContext.save()
-        streakStore.recordUsage()
+}
+
+// MARK: - Active challenge sidebar row
+
+private struct ActiveChallengeSidebarRow: View {
+    let challenge: Challenge
+    let onMarkToday: () -> Void
+
+    private let calendar = Calendar.current
+
+    private var todayDayIndex: Int? {
+        challenge.dayIndex(for: Date())
+    }
+
+    private var todayProgress: ChallengeDayProgress? {
+        guard let idx = todayDayIndex else { return nil }
+        return challenge.dayProgress.first { $0.dayIndex == idx }
+    }
+
+    private var isTodayMarked: Bool {
+        todayProgress?.isCompleted == true
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(challenge.title)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                if let idx = todayDayIndex {
+                    Text("Day \(idx) of \(challenge.totalDays)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Spacer(minLength: 4)
+            Button {
+                onMarkToday()
+            } label: {
+                Image(systemName: isTodayMarked ? "checkmark.circle.fill" : "circle")
+                    .font(.body)
+                    .foregroundStyle(isTodayMarked ? .green : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help(isTodayMarked ? "Today marked" : "Mark today")
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -265,6 +340,9 @@ struct DayPlanView: View {
     @State private var newTaskTitle = ""
     @State private var newTaskQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
     @State private var editingTaskId: PersistentIdentifier?
+    @State private var showAddTaskSheet = false
+    @State private var fabTaskTitle = ""
+    @State private var fabTaskQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
 
     var body: some View {
         ScrollView {
@@ -290,6 +368,41 @@ struct DayPlanView: View {
         )
         .background(.regularMaterial.opacity(0.3))
         .animation(.easeInOut(duration: 0.28), value: timerStore.activeTaskID != nil)
+        .overlay(alignment: .bottomTrailing) {
+            Button {
+                fabTaskTitle = ""
+                fabTaskQuadrant = newTaskQuadrant
+                showAddTaskSheet = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title2.weight(.semibold))
+                    .frame(width: 56, height: 56)
+                    .background(.tint, in: Circle())
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+            .padding(24)
+        }
+        .sheet(isPresented: $showAddTaskSheet) {
+            AddTaskSheetView(
+                title: $fabTaskTitle,
+                quadrant: $fabTaskQuadrant,
+                onAdd: {
+                    addTaskWith(title: fabTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines), quadrant: fabTaskQuadrant)
+                    if !fabTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        showAddTaskSheet = false
+                        fabTaskTitle = ""
+                    }
+                },
+                onCancel: {
+                    showAddTaskSheet = false
+                    fabTaskTitle = ""
+                }
+            )
+            .frame(minWidth: 360, minHeight: 200)
+            .presentationCornerRadius(12)
+        }
     }
 
     private var header: some View {
@@ -549,15 +662,80 @@ struct DayPlanView: View {
     private func addTask() {
         let title = newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
+        addTaskWith(title: title, quadrant: newTaskQuadrant)
+        newTaskTitle = ""
+    }
+
+    private func addTaskWith(title: String, quadrant: EisenhowerQuadrant) {
+        guard !title.isEmpty else { return }
         let nextOrder = (planDay.tasks.filter { $0.parent == nil }.map(\.sortOrder).max() ?? -1) + 1
-        let task = PlanTask(title: title, sortOrder: nextOrder, planDay: planDay, parent: nil, quadrant: newTaskQuadrant)
+        let task = PlanTask(title: title, sortOrder: nextOrder, planDay: planDay, parent: nil, quadrant: quadrant)
         withAnimation(.easeOut(duration: 0.22)) {
             modelContext.insert(task)
             planDay.tasks.append(task)
         }
         try? modelContext.save()
-        newTaskTitle = ""
         streakStore.recordUsage()
+    }
+}
+
+// MARK: - Add task sheet (FAB)
+
+private struct AddTaskSheetView: View {
+    @Binding var title: String
+    @Binding var quadrant: EisenhowerQuadrant
+    var onAdd: () -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("New task")
+                .font(.headline)
+            HStack(spacing: 10) {
+                Menu {
+                    ForEach(EisenhowerQuadrant.matrixDisplayOrder, id: \.rawValue) { q in
+                        Button {
+                            quadrant = q
+                        } label: {
+                            HStack {
+                                Image(systemName: q.systemImage)
+                                    .foregroundStyle(q.accentColor)
+                                Text(q.shortTitle)
+                                if quadrant == q {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: quadrant.systemImage)
+                            .foregroundStyle(quadrant.accentColor)
+                        Text(quadrant.shortTitle)
+                            .font(.subheadline)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
+                }
+                .menuStyle(.borderlessButton)
+                TextField("Task title", text: $title)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { onAdd() }
+            }
+            HStack(spacing: 10) {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Add task") {
+                    onAdd()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
     }
 }
 

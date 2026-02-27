@@ -14,7 +14,7 @@ struct ChallengeListView: View {
                         ContentUnavailableView(
                             "No challenges yet",
                             systemImage: "flag.checkered",
-                            description: Text("Create a 30-day or 100-day challenge to track progress and add biweekly retrospectives.")
+                            description: Text("Create a 30-day or 100-day challenge to track progress and add retrospectives every 3, 7, or 14 days.")
                         )
                     } else {
                         List {
@@ -61,20 +61,20 @@ struct ChallengeListView: View {
             }
         }
         .sheet(isPresented: $showNewChallenge) {
-            NewChallengeSheet(onCreate: { title, totalDays, allowMarkPastDays in
-                createChallenge(title: title, totalDays: totalDays, allowMarkPastDays: allowMarkPastDays)
+            NewChallengeSheet(onCreate: { title, challengeDescription, totalDays, retrospectivePeriodDays, allowMarkPastDays in
+                createChallenge(title: title, challengeDescription: challengeDescription, totalDays: totalDays, retrospectivePeriodDays: retrospectivePeriodDays, allowMarkPastDays: allowMarkPastDays)
                 showNewChallenge = false
             }, onCancel: {
                 showNewChallenge = false
             })
-            .frame(minWidth: 400, minHeight: 260)
+            .frame(minWidth: 400, minHeight: 380)
             .presentationCornerRadius(12)
         }
     }
 
-    private func createChallenge(title: String, totalDays: Int, allowMarkPastDays: Bool = true) {
+    private func createChallenge(title: String, challengeDescription: String = "", totalDays: Int, retrospectivePeriodDays: Int = 14, allowMarkPastDays: Bool = true) {
         let start = Calendar.current.startOfDay(for: Date())
-        let challenge = Challenge(title: title, totalDays: totalDays, startDate: start, allowMarkPastDays: allowMarkPastDays)
+        let challenge = Challenge(title: title, challengeDescription: challengeDescription, totalDays: totalDays, startDate: start, allowMarkPastDays: allowMarkPastDays, retrospectivePeriodDays: retrospectivePeriodDays)
         modelContext.insert(challenge)
         try? modelContext.save()
     }
@@ -111,12 +111,16 @@ struct ChallengeRowView: View {
 
 // MARK: - New challenge sheet
 
+private let retrospectivePeriodOptions = [3, 7, 14]
+
 struct NewChallengeSheet: View {
     @State private var title = ""
+    @State private var challengeDescription = ""
     @State private var totalDays = 30
     @State private var daysText = "30"
+    @State private var retrospectivePeriodDays = 14
     @State private var allowMarkPastDays = true
-    var onCreate: (String, Int, Bool) -> Void
+    var onCreate: (String, String, Int, Int, Bool) -> Void
     var onCancel: () -> Void
 
     private static let minDays = 1
@@ -131,6 +135,8 @@ struct NewChallengeSheet: View {
             Form {
                 Section {
                     TextField("Challenge name", text: $title)
+                    TextField("Description (optional)", text: $challengeDescription, axis: .vertical)
+                        .lineLimit(3...6)
                 }
                 Section {
                     HStack(spacing: 12) {
@@ -163,6 +169,17 @@ struct NewChallengeSheet: View {
                         .foregroundStyle(.secondary)
                 } header: {
                     Text("Duration")
+                }
+                Section {
+                    Picker("Retrospective every", selection: $retrospectivePeriodDays) {
+                        ForEach(retrospectivePeriodOptions, id: \.self) { days in
+                            Text("\(days) days").tag(days)
+                        }
+                    }
+                } header: {
+                    Text("Retrospectives")
+                } footer: {
+                    Text("Review progress every 3, 7, or 14 days.")
                 }
                 Section {
                     Toggle("Allow marking past days as done", isOn: $allowMarkPastDays)
@@ -181,7 +198,8 @@ struct NewChallengeSheet: View {
                     Button("Create") {
                         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         if !t.isEmpty {
-                            onCreate(t, resolvedDays, allowMarkPastDays)
+                            let desc = challengeDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                            onCreate(t, desc.isEmpty ? "" : desc, resolvedDays, retrospectivePeriodDays, allowMarkPastDays)
                         }
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -199,10 +217,12 @@ struct NewChallengeSheet: View {
 struct EditChallengeSheet: View {
     let challenge: Challenge
     @State private var title: String = ""
+    @State private var challengeDescription: String = ""
     @State private var totalDays: Int = 30
     @State private var daysText: String = "30"
+    @State private var retrospectivePeriodDays: Int = 14
     @State private var allowMarkPastDays: Bool = true
-    var onSave: (String, Int, Bool) -> Void
+    var onSave: (String, String, Int, Int, Bool) -> Void
     var onCancel: () -> Void
 
     private static let minDays = 1
@@ -217,6 +237,8 @@ struct EditChallengeSheet: View {
             Form {
                 Section {
                     TextField("Challenge name", text: $title)
+                    TextField("Description (optional)", text: $challengeDescription, axis: .vertical)
+                        .lineLimit(3...6)
                 }
                 Section {
                     HStack(spacing: 12) {
@@ -251,6 +273,17 @@ struct EditChallengeSheet: View {
                     Text("Duration")
                 }
                 Section {
+                    Picker("Retrospective every", selection: $retrospectivePeriodDays) {
+                        ForEach(retrospectivePeriodOptions, id: \.self) { days in
+                            Text("\(days) days").tag(days)
+                        }
+                    }
+                } header: {
+                    Text("Retrospectives")
+                } footer: {
+                    Text("Review progress every 3, 7, or 14 days.")
+                }
+                Section {
                     Toggle("Allow marking past days as done", isOn: $allowMarkPastDays)
                 } footer: {
                     Text("When off, only the current day can be marked as done; past missed days will appear red in the track.")
@@ -267,7 +300,7 @@ struct EditChallengeSheet: View {
                     Button("Save") {
                         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         if !t.isEmpty {
-                            onSave(t, resolvedDays, allowMarkPastDays)
+                            onSave(t, challengeDescription.trimmingCharacters(in: .whitespacesAndNewlines), resolvedDays, retrospectivePeriodDays, allowMarkPastDays)
                         }
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -276,8 +309,10 @@ struct EditChallengeSheet: View {
         }
         .onAppear {
             title = challenge.title
+            challengeDescription = challenge.challengeDescription ?? ""
             totalDays = challenge.totalDays
             daysText = String(challenge.totalDays)
+            retrospectivePeriodDays = challenge.effectiveRetrospectivePeriodDays
             allowMarkPastDays = challenge.allowsMarkingPastDays
         }
     }

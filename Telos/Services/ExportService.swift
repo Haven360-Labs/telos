@@ -85,14 +85,14 @@ enum ExportService {
         var descriptor = FetchDescriptor<PlanNote>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
         let notes = (try? modelContext.fetch(descriptor)) ?? []
         var rows: [String] = []
-        rows.append("created_at,content,plan_date")
+        rows.append("created_at,title,content,plan_date")
         let iso = ISO8601DateFormatter()
         let dateOnly = ISO8601DateFormatter()
         dateOnly.formatOptions = [.withFullDate, .withDashSeparatorInDate]
         for note in notes {
             let created = iso.string(from: note.createdAt)
             let planDate = note.planDay.map { dateOnly.string(from: $0.date) } ?? ""
-            rows.append([created, escapeCSV(note.content), planDate].joined(separator: ","))
+            rows.append([created, escapeCSV(note.title), escapeCSV(note.content), planDate].joined(separator: ","))
         }
         return rows.joined(separator: "\n")
     }

@@ -1,10 +1,10 @@
 import Foundation
 import SwiftData
 
-/// Biweekly retrospective for a challenge (one per 14-day period).
+/// Retrospective for a challenge (one per period; period length is set on the challenge: 3, 7, or 14 days).
 @Model
 final class ChallengeRetrospective {
-    /// 1-based period index (1 = days 1–14, 2 = 15–28, …).
+    /// 1-based period index (e.g. 1 = first period, 2 = second period, …).
     var periodIndex: Int
     var notes: String
     var updatedAt: Date
