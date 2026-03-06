@@ -43,20 +43,65 @@ enum RetrospectiveScope: String, CaseIterable, Identifiable {
         }
         return (start, end)
     }
+
+    /// Period (start, end) for the given offset from today. 0 = current period, -1 = previous (e.g. last week/month), -2 = two periods ago.
+    func periodRange(offsetFromToday offset: Int, calendar: Calendar = .current) -> (start: Date, end: Date) {
+        if offset == 0 {
+            return periodRange(around: Date(), calendar: calendar)
+        }
+        let (curStart, curEnd) = periodRange(around: Date(), calendar: calendar)
+        if offset > 0 {
+            var start = curStart
+            var end = curEnd
+            for _ in 0..<offset {
+                start = end
+                end = periodEnd(after: start, calendar: calendar)
+            }
+            return (start, end)
+        }
+        var start = curStart
+        var end = curEnd
+        for _ in 0..<(-offset) {
+            end = start
+            start = periodStart(before: end, calendar: calendar)
+        }
+        return (start, end)
+    }
+
+    private func periodEnd(after periodStart: Date, calendar: Calendar) -> Date {
+        switch self {
+        case .day: return calendar.date(byAdding: .day, value: 1, to: periodStart)!
+        case .week: return calendar.date(byAdding: .day, value: 7, to: periodStart)!
+        case .month: return calendar.date(byAdding: .month, value: 1, to: periodStart)!
+        case .quarter: return calendar.date(byAdding: .month, value: 3, to: periodStart)!
+        }
+    }
+
+    private func periodStart(before periodEnd: Date, calendar: Calendar) -> Date {
+        switch self {
+        case .day: return calendar.date(byAdding: .day, value: -1, to: periodEnd)!
+        case .week: return calendar.date(byAdding: .day, value: -7, to: periodEnd)!
+        case .month: return calendar.date(byAdding: .month, value: -1, to: periodEnd)!
+        case .quarter: return calendar.date(byAdding: .month, value: -3, to: periodEnd)!
+        }
+    }
 }
 
 struct RetrospectiveView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(StreakStore.self) private var streakStore
     @State private var scope: RetrospectiveScope = .week
+    /// 0 = current period (e.g. this week), -1 = previous (last week/month), -2 = two periods ago.
+    @State private var periodOffset: Int = 0
     @State private var periodDays: [PlanDay] = []
     @State private var entry: RetrospectiveEntry?
 
     private let calendar = Calendar.current
 
     var body: some View {
-        let (start, end) = scope.periodRange(around: Date(), calendar: calendar)
+        let (start, end) = scope.periodRange(offsetFromToday: periodOffset, calendar: calendar)
         let periodTitle = periodTitle(start: start, end: end)
+        let canGoNext = periodOffset < 0
 
         return List {
             Section {
@@ -66,12 +111,38 @@ struct RetrospectiveView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: scope) { loadData() }
+                .onChange(of: scope) {
+                    periodOffset = 0
+                    loadData()
+                }
             }
 
             Section {
-                Label(periodTitle, systemImage: "calendar")
-                    .font(.subheadline)
+                HStack {
+                    Label(periodTitle, systemImage: "calendar")
+                        .font(.subheadline)
+                    Spacer()
+                    HStack(spacing: 12) {
+                        Button {
+                            periodOffset -= 1
+                            loadData()
+                        } label: {
+                            Label("Previous \(scope.label)", systemImage: "chevron.left")
+                                .labelStyle(.iconOnly)
+                        }
+                        .help("Previous \(scope.label.lowercased()) (e.g. last \(scope.label.lowercased()))")
+
+                        Button {
+                            periodOffset += 1
+                            loadData()
+                        } label: {
+                            Label("Next \(scope.label)", systemImage: "chevron.right")
+                                .labelStyle(.iconOnly)
+                        }
+                        .disabled(!canGoNext)
+                        .help(canGoNext ? "Next \(scope.label.lowercased())" : "Current \(scope.label.lowercased())")
+                    }
+                }
             }
 
             Section("Metrics") {
@@ -108,7 +179,7 @@ struct RetrospectiveView: View {
                     get: { entry?.notes ?? "" },
                     set: { newValue in
                         if entry == nil {
-                            let (s, _) = scope.periodRange(around: Date(), calendar: calendar)
+                            let (s, _) = scope.periodRange(offsetFromToday: periodOffset, calendar: calendar)
                             let newEntry = RetrospectiveEntry(periodScope: scope.rawValue, periodStart: s, notes: newValue)
                             modelContext.insert(newEntry)
                             entry = newEntry
@@ -127,6 +198,7 @@ struct RetrospectiveView: View {
             loadData()
             streakStore.recordUsage()
         }
+        .onChange(of: periodOffset) { loadData() }
     }
 
     private var completedCount: Int {
@@ -178,7 +250,7 @@ struct RetrospectiveView: View {
     }
 
     private func loadData() {
-        let (start, end) = scope.periodRange(around: Date(), calendar: calendar)
+        let (start, end) = scope.periodRange(offsetFromToday: periodOffset, calendar: calendar)
         let scopeRaw = scope.rawValue
         let descriptor = FetchDescriptor<PlanDay>(
             predicate: #Predicate<PlanDay> { day in

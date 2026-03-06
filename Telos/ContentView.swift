@@ -288,7 +288,7 @@ struct ContentView: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Move from past day…") {
+                    Button("Copy from past day…") {
                         showMoveFromPastDaySheet = true
                     }
                     .disabled(displayedPlanDay == nil)
@@ -797,11 +797,11 @@ private struct AddTaskSheetView: View {
     }
 }
 
-// MARK: - Move from past day
+// MARK: - Copy from past day
 
 struct MoveFromPastDaySheet: View {
     var dayStore: DayStore
-    /// Day to move incomplete tasks into (e.g. the currently viewed day).
+    /// Day to copy incomplete tasks into (e.g. the currently viewed day).
     var targetDay: PlanDay
     var pastDays: [PlanDay]
     var onDismiss: () -> Void
@@ -822,7 +822,7 @@ struct MoveFromPastDaySheet: View {
                     ContentUnavailableView(
                         "No incomplete tasks in past days",
                         systemImage: "calendar.badge.checkmark",
-                        description: Text("Past days have no uncompleted tasks to move.")
+                        description: Text("Past days have no uncompleted tasks to copy.")
                     )
                 } else {
                     List {
@@ -849,7 +849,7 @@ struct MoveFromPastDaySheet: View {
                     .listStyle(.inset)
                 }
             }
-            .navigationTitle(Calendar.current.isDateInToday(targetDay.date) ? "Move to today" : "Move to this day")
+            .navigationTitle(Calendar.current.isDateInToday(targetDay.date) ? "Copy to today" : "Copy to this day")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { onDismiss() }

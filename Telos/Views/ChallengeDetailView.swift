@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct ChallengeDetailView: View {
     @Bindable var challenge: Challenge
@@ -54,13 +55,13 @@ struct ChallengeDetailView: View {
         .sheet(isPresented: $showEditSheet) {
             EditChallengeSheet(
                 challenge: challenge,
-                onSave: { newTitle, newDescription, newTotalDays, newRetrospectivePeriodDays, allowMarkPastDays in
-                    applyEdit(title: newTitle, challengeDescription: newDescription, totalDays: newTotalDays, retrospectivePeriodDays: newRetrospectivePeriodDays, allowMarkPastDays: allowMarkPastDays)
+                onSave: { newTitle, newDescription, newTotalDays, newRetrospectivePeriodDays, allowMarkPastDays, excludeWeekends in
+                    applyEdit(title: newTitle, challengeDescription: newDescription, totalDays: newTotalDays, retrospectivePeriodDays: newRetrospectivePeriodDays, allowMarkPastDays: allowMarkPastDays, excludeWeekends: excludeWeekends)
                     showEditSheet = false
                 },
                 onCancel: { showEditSheet = false }
             )
-            .frame(minWidth: 400, minHeight: 340)
+            .frame(minWidth: 400, minHeight: 380)
             .presentationCornerRadius(12)
         }
         .toolbar {
@@ -81,12 +82,13 @@ struct ChallengeDetailView: View {
         }
     }
 
-    private func applyEdit(title: String, challengeDescription: String, totalDays: Int, retrospectivePeriodDays: Int, allowMarkPastDays: Bool) {
+    private func applyEdit(title: String, challengeDescription: String, totalDays: Int, retrospectivePeriodDays: Int, allowMarkPastDays: Bool, excludeWeekends: Bool) {
         let newTotal = min(max(totalDays, 1), 365)
         challenge.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         challenge.challengeDescription = challengeDescription.isEmpty ? nil : challengeDescription
         challenge.retrospectivePeriodDays = retrospectivePeriodDays
         challenge.allowMarkPastDays = allowMarkPastDays
+        challenge.excludeWeekends = excludeWeekends
         if newTotal != challenge.totalDays, newTotal < challenge.totalDays {
             let toRemoveProgress = challenge.dayProgress.filter { $0.dayIndex > newTotal }
             for p in toRemoveProgress { modelContext.delete(p) }
@@ -306,6 +308,55 @@ struct RetrospectiveRowView: View {
     }
 }
 
+// MARK: - Left-aligned notes field (macOS Form often ignores SwiftUI alignment)
+
+private struct LeadingAlignNotesField: NSViewRepresentable {
+    let placeholder: String
+    @Binding var text: String
+    var lineLimit: ClosedRange<Int> = 3...6
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        guard let textView = scrollView.documentView as? NSTextView else { return scrollView }
+        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
+        textView.drawsBackground = true
+        textView.backgroundColor = .textBackgroundColor
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.string = text
+        textView.alignment = .left
+        textView.delegate = context.coordinator
+        context.coordinator.textView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        if textView.string != text {
+            textView.string = text
+        }
+        textView.alignment = .left
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        @Binding var text: String
+        weak var textView: NSTextView?
+
+        init(text: Binding<String>) {
+            _text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text = textView.string
+        }
+    }
+}
+
 // MARK: - Day progress sheet
 
 struct DayProgressSheet: View {
@@ -367,10 +418,11 @@ struct DayProgressSheet: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    TextField("Notes (optional)", text: $notes, axis: .vertical)
-                        .lineLimit(3...6)
+                    LeadingAlignNotesField(placeholder: "Notes (optional)", text: $notes, lineLimit: 3...6)
+                        .frame(minHeight: 72, maxHeight: 140)
                 }
             }
+            .environment(\.layoutDirection, .leftToRight)
             .formStyle(.grouped)
             .navigationTitle("Day \(dayIndex)")
             .onAppear {
@@ -427,9 +479,11 @@ struct ChallengeRetrospectiveSheet: View {
                 }
                 Section("Retrospective notes") {
                     TextEditor(text: $notes)
-                        .frame(minHeight: 160)
+                        .frame(minHeight: 160, alignment: .topLeading)
+                        .multilineTextAlignment(.leading)
                 }
             }
+            .environment(\.layoutDirection, .leftToRight)
             .formStyle(.grouped)
             .navigationTitle("Retrospective")
             .onAppear {

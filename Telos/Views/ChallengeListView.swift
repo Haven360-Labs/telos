@@ -61,20 +61,20 @@ struct ChallengeListView: View {
             }
         }
         .sheet(isPresented: $showNewChallenge) {
-            NewChallengeSheet(onCreate: { title, challengeDescription, totalDays, retrospectivePeriodDays, allowMarkPastDays in
-                createChallenge(title: title, challengeDescription: challengeDescription, totalDays: totalDays, retrospectivePeriodDays: retrospectivePeriodDays, allowMarkPastDays: allowMarkPastDays)
+            NewChallengeSheet(onCreate: { title, challengeDescription, totalDays, retrospectivePeriodDays, allowMarkPastDays, excludeWeekends in
+                createChallenge(title: title, challengeDescription: challengeDescription, totalDays: totalDays, retrospectivePeriodDays: retrospectivePeriodDays, allowMarkPastDays: allowMarkPastDays, excludeWeekends: excludeWeekends)
                 showNewChallenge = false
             }, onCancel: {
                 showNewChallenge = false
             })
-            .frame(minWidth: 400, minHeight: 380)
+            .frame(minWidth: 400, minHeight: 420)
             .presentationCornerRadius(12)
         }
     }
 
-    private func createChallenge(title: String, challengeDescription: String = "", totalDays: Int, retrospectivePeriodDays: Int = 14, allowMarkPastDays: Bool = true) {
+    private func createChallenge(title: String, challengeDescription: String = "", totalDays: Int, retrospectivePeriodDays: Int = 14, allowMarkPastDays: Bool = true, excludeWeekends: Bool = false) {
         let start = Calendar.current.startOfDay(for: Date())
-        let challenge = Challenge(title: title, challengeDescription: challengeDescription, totalDays: totalDays, startDate: start, allowMarkPastDays: allowMarkPastDays, retrospectivePeriodDays: retrospectivePeriodDays)
+        let challenge = Challenge(title: title, challengeDescription: challengeDescription, totalDays: totalDays, startDate: start, allowMarkPastDays: allowMarkPastDays, excludeWeekends: excludeWeekends, retrospectivePeriodDays: retrospectivePeriodDays)
         modelContext.insert(challenge)
         try? modelContext.save()
     }
@@ -120,7 +120,8 @@ struct NewChallengeSheet: View {
     @State private var daysText = "30"
     @State private var retrospectivePeriodDays = 14
     @State private var allowMarkPastDays = true
-    var onCreate: (String, String, Int, Int, Bool) -> Void
+    @State private var excludeWeekends = false
+    var onCreate: (String, String, Int, Int, Bool, Bool) -> Void
     var onCancel: () -> Void
 
     private static let minDays = 1
@@ -182,6 +183,11 @@ struct NewChallengeSheet: View {
                     Text("Review progress every 3, 7, or 14 days.")
                 }
                 Section {
+                    Toggle("Exclude weekends", isOn: $excludeWeekends)
+                } footer: {
+                    Text("When on, only weekdays (Monday–Friday) count as challenge days; Saturday and Sunday are skipped.")
+                }
+                Section {
                     Toggle("Allow marking past days as done", isOn: $allowMarkPastDays)
                 } footer: {
                     Text("When off, only the current day can be marked as done; past days that were not marked on the day cannot be marked later and will appear red in the track.")
@@ -199,7 +205,7 @@ struct NewChallengeSheet: View {
                         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         if !t.isEmpty {
                             let desc = challengeDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-                            onCreate(t, desc.isEmpty ? "" : desc, resolvedDays, retrospectivePeriodDays, allowMarkPastDays)
+                            onCreate(t, desc.isEmpty ? "" : desc, resolvedDays, retrospectivePeriodDays, allowMarkPastDays, excludeWeekends)
                         }
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -222,7 +228,8 @@ struct EditChallengeSheet: View {
     @State private var daysText: String = "30"
     @State private var retrospectivePeriodDays: Int = 14
     @State private var allowMarkPastDays: Bool = true
-    var onSave: (String, String, Int, Int, Bool) -> Void
+    @State private var excludeWeekends: Bool = false
+    var onSave: (String, String, Int, Int, Bool, Bool) -> Void
     var onCancel: () -> Void
 
     private static let minDays = 1
@@ -284,6 +291,11 @@ struct EditChallengeSheet: View {
                     Text("Review progress every 3, 7, or 14 days.")
                 }
                 Section {
+                    Toggle("Exclude weekends", isOn: $excludeWeekends)
+                } footer: {
+                    Text("When on, only weekdays (Monday–Friday) count as challenge days; Saturday and Sunday are skipped.")
+                }
+                Section {
                     Toggle("Allow marking past days as done", isOn: $allowMarkPastDays)
                 } footer: {
                     Text("When off, only the current day can be marked as done; past missed days will appear red in the track.")
@@ -300,7 +312,7 @@ struct EditChallengeSheet: View {
                     Button("Save") {
                         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         if !t.isEmpty {
-                            onSave(t, challengeDescription.trimmingCharacters(in: .whitespacesAndNewlines), resolvedDays, retrospectivePeriodDays, allowMarkPastDays)
+                            onSave(t, challengeDescription.trimmingCharacters(in: .whitespacesAndNewlines), resolvedDays, retrospectivePeriodDays, allowMarkPastDays, excludeWeekends)
                         }
                     }
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -314,6 +326,7 @@ struct EditChallengeSheet: View {
             daysText = String(challenge.totalDays)
             retrospectivePeriodDays = challenge.effectiveRetrospectivePeriodDays
             allowMarkPastDays = challenge.allowsMarkingPastDays
+            excludeWeekends = challenge.excludesWeekends
         }
     }
 }
