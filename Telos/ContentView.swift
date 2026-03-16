@@ -380,6 +380,8 @@ struct DayPlanView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(TimerStore.self) private var timerStore
     @Environment(StreakStore.self) private var streakStore
+    @Environment(DayStore.self) private var dayStore
+    @Query(sort: \PlanGoal.sortOrder, order: .forward) private var allGoals: [PlanGoal]
     @State private var newTaskTitle = ""
     @State private var newTaskQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
     @State private var editingTaskId: PersistentIdentifier?
@@ -387,12 +389,38 @@ struct DayPlanView: View {
     @State private var fabTaskTitle = ""
     @State private var fabTaskQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
 
+    private static var calendar: Calendar { .current }
+
+    private static func currentMonthStart() -> Date {
+        calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
+    }
+
+    private var currentWeekNumber: Int {
+        let dayOfMonth = Self.calendar.component(.day, from: Date())
+        let weekNum = ((dayOfMonth - 1) / 7) + 1
+        return min(max(weekNum, 1), 4)
+    }
+
+    private var currentWeekGoals: [PlanGoal] {
+        guard isSelectedDateToday else { return [] }
+        let monthStart = Self.currentMonthStart()
+        return allGoals.filter { goal in
+            Self.calendar.isDate(goal.month, inSameDayAs: monthStart) && goal.weekNumber == currentWeekNumber
+        }.sorted { g1, g2 in
+            if g1.isCompleted != g2.isCompleted { return !g1.isCompleted }
+            return g1.sortOrder < g2.sortOrder
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 if timerStore.activeTaskID != nil {
                     activeTaskCard
+                }
+                if isSelectedDateToday, !currentWeekGoals.isEmpty {
+                    currentWeekGoalsSection
                 }
                 addTaskBar
                 if planDay.sortedTopLevelTasks.isEmpty {
@@ -612,6 +640,63 @@ struct DayPlanView: View {
               let task = modelContext.model(for: id) as? PlanTask,
               let day = task.planDay, Calendar.current.isDateInToday(day.date) else { return fromTasks }
         return fromTasks + timerStore.countUpElapsedSeconds
+    }
+
+    private var currentWeekGoalsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "circle.hexagongrid.fill")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                Text("This week's goals")
+                    .font(.headline)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(currentWeekGoals, id: \.id) { goal in
+                    HStack(spacing: 10) {
+                        Image(systemName: goal.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .font(.body)
+                            .foregroundStyle(goal.isCompleted ? .green : .secondary)
+                        Text(goal.title)
+                            .font(.subheadline)
+                            .strikethrough(goal.isCompleted)
+                            .foregroundStyle(goal.isCompleted ? .secondary : .primary)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            makeGoalTodayTask(goal)
+                        } label: {
+                            Image(systemName: "sun.max")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Add to today's tasks")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    private func makeGoalTodayTask(_ goal: PlanGoal) {
+        dayStore.ensureTodayExists(modelContext: modelContext)
+        guard let todayPlan = dayStore.fetchDay(for: Date(), modelContext: modelContext) else { return }
+        let nextOrder = (todayPlan.tasks.filter { $0.parent == nil }.map(\.sortOrder).max() ?? -1) + 1
+        let task = PlanTask(
+            title: goal.title,
+            sortOrder: nextOrder,
+            planDay: todayPlan,
+            parent: nil,
+            quadrant: .notImportantNotUrgent
+        )
+        modelContext.insert(task)
+        todayPlan.tasks.append(task)
+        try? modelContext.save()
     }
 
     private var addTaskBar: some View {
