@@ -29,6 +29,8 @@
 		A1000020 /* ChallengeRetrospective.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000020 /* ChallengeRetrospective.swift */; };
 		A1000021 /* ChallengeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000021 /* ChallengeListView.swift */; };
 		A1000022 /* ChallengeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000022 /* ChallengeDetailView.swift */; };
+		A1000023 /* FutureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000023 /* FutureView.swift */; };
+		A1000024 /* FutureTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024 /* FutureTask.swift */; };
 		BB47052E2F407BE500092F83 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB47052D2F407BE500092F83 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -56,6 +58,8 @@
 		A2000020 /* ChallengeRetrospective.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeRetrospective.swift; sourceTree = "<group>"; };
 		A2000021 /* ChallengeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeListView.swift; sourceTree = "<group>"; };
 		A2000022 /* ChallengeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeDetailView.swift; sourceTree = "<group>"; };
+		A2000023 /* FutureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FutureView.swift; sourceTree = "<group>"; };
+		A2000024 /* FutureTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FutureTask.swift; sourceTree = "<group>"; };
 		BB47052D2F407BE500092F83 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -111,6 +115,7 @@
 				A2000018 /* Challenge.swift */,
 				A2000019 /* ChallengeDayProgress.swift */,
 				A2000020 /* ChallengeRetrospective.swift */,
+				A2000024 /* FutureTask.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -136,6 +141,7 @@
 				A2000017 /* SettingsView.swift */,
 				A2000021 /* ChallengeListView.swift */,
 				A2000022 /* ChallengeDetailView.swift */,
+				A2000023 /* FutureView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -226,6 +232,8 @@
 				A1000020 /* ChallengeRetrospective.swift in Sources */,
 				A1000021 /* ChallengeListView.swift in Sources */,
 				A1000022 /* ChallengeDetailView.swift in Sources */,
+				A1000023 /* FutureView.swift in Sources */,
+				A1000024 /* FutureTask.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

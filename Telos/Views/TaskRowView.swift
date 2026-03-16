@@ -54,16 +54,35 @@ struct TaskRowView: View {
                 .buttonStyle(.plain)
 
                 if isEditingTitle {
-                    TextField("Task title", text: $editedTitle)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($isTitleFieldFocused)
-                        .onSubmit { commitTitleEdit() }
-                        .onExitCommand { cancelTitleEdit() }
-                        .onChange(of: isTitleFieldFocused) { _, focused in
-                            if !focused {
-                                DispatchQueue.main.async { commitTitleEdit() }
+                    VStack(alignment: .leading, spacing: 8) {
+                        ZStack(alignment: .topLeading) {
+                            if editedTitle.isEmpty {
+                                Text("Task title…")
+                                    .font(.body)
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 8)
+                                    .allowsHitTesting(false)
                             }
+                            TextEditor(text: $editedTitle)
+                                .font(.body)
+                                .scrollContentBackground(.hidden)
+                                .padding(4)
+                                .frame(minHeight: 44, maxHeight: 120)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .strokeBorder(.quaternary, lineWidth: 1)
+                                )
+                                .onExitCommand { cancelTitleEdit() }
                         }
+                        HStack(spacing: 8) {
+                            Button("Done") { commitTitleEdit() }
+                                .buttonStyle(.borderedProminent)
+                            Button("Cancel") { cancelTitleEdit() }
+                                .keyboardShortcut(.cancelAction)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Text(task.title)
                         .strikethrough(task.isCompleted)
@@ -234,16 +253,34 @@ struct TaskRowView: View {
             }
 
             if isAddingSubtask {
-                HStack(spacing: 8) {
-                    TextField("Subtask title", text: $newSubtaskTitle)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { addSubtask() }
-                    Button("Add") { addSubtask() }
-                    Button("Cancel") {
-                        isAddingSubtask = false
-                        newSubtaskTitle = ""
+                VStack(alignment: .leading, spacing: 8) {
+                    ZStack(alignment: .topLeading) {
+                        if newSubtaskTitle.isEmpty {
+                            Text("Subtask title…")
+                                .font(.body)
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 8)
+                                .allowsHitTesting(false)
+                        }
+                        TextEditor(text: $newSubtaskTitle)
+                            .font(.body)
+                            .scrollContentBackground(.hidden)
+                            .padding(4)
+                            .frame(minHeight: 48, maxHeight: 120)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .strokeBorder(.quaternary, lineWidth: 1)
+                            )
                     }
-                    .keyboardShortcut(.cancelAction)
+                    HStack(spacing: 8) {
+                        Button("Add") { addSubtask() }
+                        Button("Cancel") {
+                            isAddingSubtask = false
+                            newSubtaskTitle = ""
+                        }
+                        .keyboardShortcut(.cancelAction)
+                    }
                 }
                 .padding(.leading, 32)
                 .padding(.vertical, 4)

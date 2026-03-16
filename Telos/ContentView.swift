@@ -19,6 +19,7 @@ private enum SidebarItem: String, CaseIterable, Identifiable {
     case challenge = "Challenge"
     case retrospective = "Retrospective"
     case settings = "Settings"
+    case future = "Future"
     var id: String { rawValue }
 }
 
@@ -209,6 +210,9 @@ struct ContentView: View {
                 NavigationLink(value: SidebarItem.settings) {
                     Label("Settings", systemImage: "gearshape")
                 }
+                NavigationLink(value: SidebarItem.future) {
+                    Label("Future", systemImage: "calendar.badge.clock")
+                }
             }
 
             Section("Active challenges") {
@@ -253,6 +257,8 @@ struct ContentView: View {
                 RetrospectiveView()
             case .settings:
                 SettingsView()
+            case .future:
+                FutureView(onMoveToToday: { sidebarSelection = .today })
             }
         }
         .onAppear {
@@ -603,39 +609,58 @@ struct DayPlanView: View {
     }
 
     private var addTaskBar: some View {
-        HStack(spacing: 10) {
-            Menu {
-                ForEach(EisenhowerQuadrant.matrixDisplayOrder, id: \.rawValue) { q in
-                    Button {
-                        newTaskQuadrant = q
-                    } label: {
-                        HStack {
-                            Image(systemName: q.systemImage)
-                                .foregroundStyle(q.accentColor)
-                            Text(q.shortTitle)
-                            if newTaskQuadrant == q {
-                                Image(systemName: "checkmark")
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Menu {
+                    ForEach(EisenhowerQuadrant.matrixDisplayOrder, id: \.rawValue) { q in
+                        Button {
+                            newTaskQuadrant = q
+                        } label: {
+                            HStack {
+                                Image(systemName: q.systemImage)
+                                    .foregroundStyle(q.accentColor)
+                                Text(q.shortTitle)
+                                if newTaskQuadrant == q {
+                                    Image(systemName: "checkmark")
+                                }
                             }
                         }
                     }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: newTaskQuadrant.systemImage)
+                            .foregroundStyle(newTaskQuadrant.accentColor)
+                        Text(newTaskQuadrant.shortTitle)
+                            .font(.subheadline)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
                 }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: newTaskQuadrant.systemImage)
-                        .foregroundStyle(newTaskQuadrant.accentColor)
-                    Text(newTaskQuadrant.shortTitle)
-                        .font(.subheadline)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
+                .menuStyle(.borderlessButton)
+                Spacer()
+                Button("+ New Task") { addTask() }
+                    .buttonStyle(.borderedProminent)
             }
-            .menuStyle(.borderlessButton)
-            TextField("New task", text: $newTaskTitle)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit { addTask() }
-            Button("+ New Task") { addTask() }
-                .buttonStyle(.borderedProminent)
+            ZStack(alignment: .topLeading) {
+                if newTaskTitle.isEmpty {
+                    Text("New task…")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text: $newTaskTitle)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .padding(4)
+                    .frame(minHeight: 64, maxHeight: 200)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(.quaternary, lineWidth: 1)
+                    )
+            }
         }
     }
 
@@ -749,37 +774,51 @@ private struct AddTaskSheetView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("New task")
                 .font(.headline)
-            HStack(spacing: 10) {
-                Menu {
-                    ForEach(EisenhowerQuadrant.matrixDisplayOrder, id: \.rawValue) { q in
-                        Button {
-                            quadrant = q
-                        } label: {
-                            HStack {
-                                Image(systemName: q.systemImage)
-                                    .foregroundStyle(q.accentColor)
-                                Text(q.shortTitle)
-                                if quadrant == q {
-                                    Image(systemName: "checkmark")
-                                }
+            Menu {
+                ForEach(EisenhowerQuadrant.matrixDisplayOrder, id: \.rawValue) { q in
+                    Button {
+                        quadrant = q
+                    } label: {
+                        HStack {
+                            Image(systemName: q.systemImage)
+                                .foregroundStyle(q.accentColor)
+                            Text(q.shortTitle)
+                            if quadrant == q {
+                                Image(systemName: "checkmark")
                             }
                         }
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: quadrant.systemImage)
-                            .foregroundStyle(quadrant.accentColor)
-                        Text(quadrant.shortTitle)
-                            .font(.subheadline)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
                 }
-                .menuStyle(.borderlessButton)
-                TextField("Task title", text: $title)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { onAdd() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: quadrant.systemImage)
+                        .foregroundStyle(quadrant.accentColor)
+                    Text(quadrant.shortTitle)
+                        .font(.subheadline)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
+            }
+            .menuStyle(.borderlessButton)
+            ZStack(alignment: .topLeading) {
+                if title.isEmpty {
+                    Text("Task title…")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text: $title)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .padding(4)
+                    .frame(minHeight: 64, maxHeight: 200)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(.quaternary, lineWidth: 1)
+                    )
             }
             HStack(spacing: 10) {
                 Spacer()
@@ -869,5 +908,5 @@ struct MoveFromPastDaySheet: View {
         .environment(DayStore())
         .environment(TimerStore())
         .environment(StreakStore())
-        .modelContainer(for: [PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self, Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self], inMemory: true)
+        .modelContainer(for: [PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self, Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self, FutureTask.self], inMemory: true)
 }
