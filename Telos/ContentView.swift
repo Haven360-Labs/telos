@@ -20,6 +20,7 @@ private enum SidebarItem: String, CaseIterable, Identifiable {
     case retrospective = "Retrospective"
     case settings = "Settings"
     case future = "Future"
+    case goals = "Goals"
     var id: String { rawValue }
 }
 
@@ -213,6 +214,9 @@ struct ContentView: View {
                 NavigationLink(value: SidebarItem.future) {
                     Label("Future", systemImage: "calendar.badge.clock")
                 }
+                NavigationLink(value: SidebarItem.goals) {
+                    Label("Goals", systemImage: "target")
+                }
             }
 
             Section("Active challenges") {
@@ -259,6 +263,8 @@ struct ContentView: View {
                 SettingsView()
             case .future:
                 FutureView(onMoveToToday: { sidebarSelection = .today })
+            case .goals:
+                GoalsView(onMakeTodayTask: { sidebarSelection = .today })
             }
         }
         .onAppear {
@@ -660,6 +666,12 @@ struct DayPlanView: View {
                         RoundedRectangle(cornerRadius: 6)
                             .strokeBorder(.quaternary, lineWidth: 1)
                     )
+                    .onKeyPress { press in
+                        guard press.key == .return else { return .ignored }
+                        if press.modifiers.contains(.shift) { return .ignored }
+                        addTask()
+                        return .handled
+                    }
             }
         }
     }
@@ -819,6 +831,12 @@ private struct AddTaskSheetView: View {
                         RoundedRectangle(cornerRadius: 6)
                             .strokeBorder(.quaternary, lineWidth: 1)
                     )
+                    .onKeyPress { press in
+                        guard press.key == .return else { return .ignored }
+                        if press.modifiers.contains(.shift) { return .ignored }
+                        onAdd()
+                        return .handled
+                    }
             }
             HStack(spacing: 10) {
                 Spacer()
@@ -908,5 +926,5 @@ struct MoveFromPastDaySheet: View {
         .environment(DayStore())
         .environment(TimerStore())
         .environment(StreakStore())
-        .modelContainer(for: [PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self, Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self, FutureTask.self], inMemory: true)
+        .modelContainer(for: [PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self, Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self, FutureTask.self, PlanGoal.self], inMemory: true)
 }

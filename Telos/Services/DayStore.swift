@@ -44,8 +44,9 @@ final class DayStore {
         return planDay
     }
 
-    /// Copies incomplete top-level tasks (and their subtasks) from a past day to the target day.
-    /// Copies have time reset to 0 for accurate new-day logging; originals stay on the past day for time audit.
+    /// Copies incomplete top-level tasks and only their incomplete subtasks from a past day to the target day.
+    /// - If the task or any incomplete subtask has time logged: copy to target with time reset to 0; on the past day mark both the parent task and any subtasks with time as completed (so they stay visible when viewing the past day). When the parent has no time but a subtask has time, we still mark both parent and that subtask as completed on the past.
+    /// - If the task has no time and no incomplete subtask had time: copy to target and delete the task (and its subtasks) from the past day.
     /// Returns the number of top-level tasks copied.
     private func copyIncompleteTasks(from pastDayStart: Date, to targetDay: PlanDay, modelContext: ModelContext) -> Int {
         let pastDayEnd = calendar.date(byAdding: .day, value: 1, to: pastDayStart)!
@@ -57,13 +58,17 @@ final class DayStore {
         descriptor.fetchLimit = 1
         guard let pastPlan = (try? modelContext.fetch(descriptor))?.first else { return 0 }
         let incompleteTopLevel = pastPlan.tasks.filter { $0.parent == nil && !$0.isCompleted && !$0.isArchived }
-        let baseSortOrder = (targetDay.tasks.filter { $0.parent == nil }.map(\.sortOrder).max() ?? -1) + 1
-        for (index, sourceTask) in incompleteTopLevel.enumerated() {
+        var baseSortOrder = (targetDay.tasks.filter { $0.parent == nil }.map(\.sortOrder).max() ?? -1) + 1
+        var copiedCount = 0
+        for sourceTask in incompleteTopLevel {
+            let incompleteSubtasks = sourceTask.subtasks
+                .filter { !$0.isCompleted }
+                .sorted { $0.sortOrder < $1.sortOrder }
             let newTask = PlanTask(
                 title: sourceTask.title,
                 isCompleted: false,
                 createdAt: Date(),
-                sortOrder: baseSortOrder + index,
+                sortOrder: baseSortOrder,
                 planDay: targetDay,
                 parent: nil,
                 quadrant: sourceTask.quadrant,
@@ -73,10 +78,12 @@ final class DayStore {
             newTask.timeSpentSeconds = 0
             modelContext.insert(newTask)
             targetDay.tasks.append(newTask)
-            for (subIndex, sourceSub) in sourceTask.subtasks.sorted(by: { $0.sortOrder < $1.sortOrder }).enumerated() {
+            baseSortOrder += 1
+            copiedCount += 1
+            for (subIndex, sourceSub) in incompleteSubtasks.enumerated() {
                 let newSub = PlanTask(
                     title: sourceSub.title,
-                    isCompleted: sourceSub.isCompleted,
+                    isCompleted: false,
                     createdAt: Date(),
                     sortOrder: subIndex,
                     planDay: targetDay,
@@ -89,12 +96,26 @@ final class DayStore {
                 modelContext.insert(newSub)
                 newTask.subtasks.append(newSub)
             }
+            let anySubtaskHadTime = incompleteSubtasks.contains { $0.timeSpentSeconds > 0 }
+            let keepTaskOnPastDay = sourceTask.timeSpentSeconds > 0 || anySubtaskHadTime
+            if keepTaskOnPastDay {
+                sourceTask.isCompleted = true
+                for sourceSub in incompleteSubtasks {
+                    if sourceSub.timeSpentSeconds > 0 {
+                        sourceSub.isCompleted = true
+                    } else {
+                        modelContext.delete(sourceSub)
+                    }
+                }
+            } else {
+                modelContext.delete(sourceTask)
+            }
         }
         try? modelContext.save()
-        return incompleteTopLevel.count
+        return copiedCount
     }
 
-    /// Copies all incomplete tasks and subtasks from a past day to the target day (time reset to 0 on copies; originals unchanged for audit).
+    /// Copies incomplete tasks and only their incomplete subtasks; originals are either marked completed (if they had time logged) or removed from the past day.
     /// Target day is created if needed. Returns the number of top-level tasks copied.
     func moveIncompleteTasks(from pastDayStart: Date, to targetDay: PlanDay, modelContext: ModelContext) -> Int {
         let startOfPast = calendar.startOfDay(for: pastDayStart)
@@ -102,7 +123,7 @@ final class DayStore {
         return copyIncompleteTasks(from: startOfPast, to: targetDay, modelContext: modelContext)
     }
 
-    /// Copies all incomplete tasks and subtasks from a past day to today (time reset to 0; originals stay for audit). Ensures today exists first.
+    /// Copies incomplete tasks (and only their incomplete subtasks) from a past day to today; originals marked completed or removed per time-log rules. Ensures today exists first.
     /// Returns the number of top-level tasks copied.
     func moveIncompleteTasksFromPastDayToToday(pastDayStart: Date, modelContext: ModelContext) -> Int {
         ensureTodayExists(modelContext: modelContext)

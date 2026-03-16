@@ -272,6 +272,12 @@ struct TaskRowView: View {
                                 RoundedRectangle(cornerRadius: 6)
                                     .strokeBorder(.quaternary, lineWidth: 1)
                             )
+                            .onKeyPress { press in
+                                guard press.key == .return else { return .ignored }
+                                if press.modifiers.contains(.shift) { return .ignored }
+                                addSubtask()
+                                return .handled
+                            }
                     }
                     HStack(spacing: 8) {
                         Button("Add") { addSubtask() }

@@ -13,7 +13,7 @@ struct TelosApp: App {
     }
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self, Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self, FutureTask.self])
+        let schema = Schema([PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self, Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self, FutureTask.self, PlanGoal.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: false)
         do {
             return try ModelContainer(for: schema, configurations: [config])
