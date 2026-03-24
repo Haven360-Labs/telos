@@ -45,8 +45,10 @@ final class DayStore {
     }
 
     /// Copies incomplete top-level tasks and only their incomplete subtasks from a past day to the target day.
-    /// - If the task or any incomplete subtask has time logged: copy to target with time reset to 0; on the past day mark both the parent task and any subtasks with time as completed (so they stay visible when viewing the past day). When the parent has no time but a subtask has time, we still mark both parent and that subtask as completed on the past.
-    /// - If the task has no time and no incomplete subtask had time: copy to target and delete the task (and its subtasks) from the past day.
+    /// - If the task has logged time, any incomplete subtask has logged time, or it already has at least one completed subtask:
+    ///   copy incompletes to target with time reset to 0; on the past day mark the parent completed and keep only completed/timed subtasks under it for history.
+    /// - If the task has no time, no incomplete subtask had time, and no completed subtasks exist:
+    ///   copy to target and delete the task (and its subtasks) from the past day.
     /// Returns the number of top-level tasks copied.
     private func copyIncompleteTasks(from pastDayStart: Date, to targetDay: PlanDay, modelContext: ModelContext) -> Int {
         let pastDayEnd = calendar.date(byAdding: .day, value: 1, to: pastDayStart)!
@@ -96,8 +98,9 @@ final class DayStore {
                 modelContext.insert(newSub)
                 newTask.subtasks.append(newSub)
             }
+            let completedSubtasks = sourceTask.subtasks.filter(\.isCompleted)
             let anySubtaskHadTime = incompleteSubtasks.contains { $0.timeSpentSeconds > 0 }
-            let keepTaskOnPastDay = sourceTask.timeSpentSeconds > 0 || anySubtaskHadTime
+            let keepTaskOnPastDay = sourceTask.timeSpentSeconds > 0 || anySubtaskHadTime || !completedSubtasks.isEmpty
             if keepTaskOnPastDay {
                 sourceTask.isCompleted = true
                 for sourceSub in incompleteSubtasks {

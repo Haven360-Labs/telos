@@ -10,7 +10,7 @@ struct MenuBarView: View {
     @Query(sort: \PlanNote.createdAt, order: .reverse) private var notes: [PlanNote]
     @State private var showQuickAdd = false
     @State private var quickAddTitle = ""
-    @State private var quickAddQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
+    @State private var quickAddQuadrant: EisenhowerQuadrant = AppTaskSettings.defaultQuadrant
     @State private var showAddNote = false
     @State private var noteTitle = ""
     @State private var noteContent = ""
@@ -75,6 +75,7 @@ struct MenuBarView: View {
                 .font(.headline)
             Button("Quick add task") {
                 quickAddTitle = ""
+                quickAddQuadrant = AppTaskSettings.defaultQuadrant
                 showQuickAdd = true
             }
             .keyboardShortcut("n", modifiers: [.command])

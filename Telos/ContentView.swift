@@ -383,11 +383,11 @@ struct DayPlanView: View {
     @Environment(DayStore.self) private var dayStore
     @Query(sort: \PlanGoal.sortOrder, order: .forward) private var allGoals: [PlanGoal]
     @State private var newTaskTitle = ""
-    @State private var newTaskQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
+    @State private var newTaskQuadrant: EisenhowerQuadrant = AppTaskSettings.defaultQuadrant
     @State private var editingTaskId: PersistentIdentifier?
     @State private var showAddTaskSheet = false
     @State private var fabTaskTitle = ""
-    @State private var fabTaskQuadrant: EisenhowerQuadrant = .notImportantNotUrgent
+    @State private var fabTaskQuadrant: EisenhowerQuadrant = AppTaskSettings.defaultQuadrant
 
     private static var calendar: Calendar { .current }
 
@@ -473,6 +473,11 @@ struct DayPlanView: View {
             )
             .frame(minWidth: 360, minHeight: 200)
             .presentationCornerRadius(12)
+        }
+        .onAppear {
+            let preferredQuadrant = AppTaskSettings.defaultQuadrant
+            newTaskQuadrant = preferredQuadrant
+            fabTaskQuadrant = preferredQuadrant
         }
     }
 

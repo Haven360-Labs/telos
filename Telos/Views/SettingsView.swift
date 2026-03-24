@@ -108,6 +108,21 @@ enum AppSoundSettings {
     ]
 }
 
+// MARK: - Task defaults (UserDefaults)
+enum AppTaskSettings {
+    static let defaultQuadrantKey = "telos.tasks.defaultQuadrant"
+
+    static var defaultQuadrant: EisenhowerQuadrant {
+        get {
+            let raw = UserDefaults.standard.object(forKey: defaultQuadrantKey) as? Int
+            return EisenhowerQuadrant(rawValue: raw ?? EisenhowerQuadrant.notImportantNotUrgent.rawValue) ?? .notImportantNotUrgent
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: defaultQuadrantKey)
+        }
+    }
+}
+
 struct SettingsView: View {
     @Environment(DayStore.self) private var dayStore
     @AppStorage(AppNotificationSettings.countdownFinishedKey) private var countdownFinishedEnabled: Bool = true
@@ -119,6 +134,7 @@ struct SettingsView: View {
     @AppStorage(AppNotificationSettings.endOfDayReminderMinuteKey) private var endOfDayReminderMinute: Int = 0
     @AppStorage(AppSoundSettings.countdownSoundKey) private var countdownSoundName: String = AppSoundSettings.defaultSoundName
     @AppStorage(AppMenuBarSettings.labelLengthKey) private var menuBarLabelLength: String = AppMenuBarSettings.LabelLength.long.rawValue
+    @AppStorage(AppTaskSettings.defaultQuadrantKey) private var defaultTaskQuadrantRaw: Int = EisenhowerQuadrant.notImportantNotUrgent.rawValue
 
     var body: some View {
         Form {
@@ -214,6 +230,18 @@ struct SettingsView: View {
                 Text("Timer")
             } footer: {
                 Text("Plays when a countdown timer reaches zero.")
+            }
+
+            Section {
+                Picker("Default task type", selection: $defaultTaskQuadrantRaw) {
+                    ForEach(EisenhowerQuadrant.matrixDisplayOrder, id: \.rawValue) { q in
+                        Text(q.shortTitle).tag(q.rawValue)
+                    }
+                }
+            } header: {
+                Text("Tasks")
+            } footer: {
+                Text("Used as the preselected type when creating new tasks.")
             }
         }
         .formStyle(.grouped)
