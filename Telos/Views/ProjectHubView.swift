@@ -53,6 +53,7 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
 struct ProjectHubView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(StreakStore.self) private var streakStore
+    @Environment(ProjectBoardNavigationStore.self) private var projectBoardNavigation
     @Query(sort: \Project.createdAt, order: .reverse) private var allProjects: [Project]
     @State private var selectedProject: Project?
     @State private var section: ProjectDetailSection = .overview
@@ -150,6 +151,28 @@ struct ProjectHubView: View {
         .sheet(isPresented: $showNewProjectSheet) {
             newProjectSheet
         }
+        .onChange(of: projectBoardNavigation.pendingKanbanCardID) { _, _ in
+            applyPendingOpenFromTodayBoardLink()
+        }
+        .onAppear {
+            applyPendingOpenFromTodayBoardLink()
+        }
+    }
+
+    /// Selects the owning project and **Board & tasks** when opened from a Today row linked to a kanban card.
+    private func applyPendingOpenFromTodayBoardLink() {
+        guard let id = projectBoardNavigation.pendingKanbanCardID else { return }
+        guard let card = try? modelContext.model(for: id) as? ProjectKanbanCard else {
+            projectBoardNavigation.clearPendingKanbanCardFocus()
+            return
+        }
+        let owning = card.column?.project ?? card.column?.sprint?.project
+        guard let proj = owning else {
+            projectBoardNavigation.clearPendingKanbanCardFocus()
+            return
+        }
+        selectedProject = proj
+        section = .boardAndTasks
     }
 
     private var projectList: some View {
@@ -1016,6 +1039,8 @@ private struct ProjectBoardAndTasksSection: View {
     var modelContext: ModelContext
     var streakStore: StreakStore
 
+    @Environment(ProjectBoardNavigationStore.self) private var projectBoardNavigation
+
     @State private var tab: ProjectWorkHubTab = .board
     /// `nil` = project main board; otherwise that sprint’s board.
     @State private var workSprint: ProjectSprint?
@@ -1070,6 +1095,26 @@ private struct ProjectBoardAndTasksSection: View {
             .id(workSprint.map(\.persistentModelID))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .onChange(of: projectBoardNavigation.pendingKanbanCardID) { _, _ in
+            applyPendingFocusFromTodayBoardLink()
+        }
+        .onAppear {
+            applyPendingFocusFromTodayBoardLink()
+        }
+    }
+
+    /// Aligns board scope (main vs sprint) and **Board** tab, then clears the pending jump from Today.
+    private func applyPendingFocusFromTodayBoardLink() {
+        guard let id = projectBoardNavigation.pendingKanbanCardID else { return }
+        guard let card = try? modelContext.model(for: id) as? ProjectKanbanCard else {
+            projectBoardNavigation.clearPendingKanbanCardFocus()
+            return
+        }
+        let owning = card.column?.project ?? card.column?.sprint?.project
+        guard owning?.persistentModelID == project.persistentModelID else { return }
+        workSprint = card.column?.sprint
+        tab = .board
+        projectBoardNavigation.clearPendingKanbanCardFocus()
     }
 }
 

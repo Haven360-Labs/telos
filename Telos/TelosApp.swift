@@ -7,6 +7,7 @@ struct TelosApp: App {
     @State private var dayStore = DayStore()
     @State private var timerStore = TimerStore()
     @State private var streakStore = StreakStore()
+    @State private var projectBoardNavigation = ProjectBoardNavigationStore()
 
     init() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
@@ -59,6 +60,7 @@ struct TelosApp: App {
                 .environment(dayStore)
                 .environment(timerStore)
                 .environment(streakStore)
+                .environment(projectBoardNavigation)
         }
         .modelContainer(sharedModelContainer)
         .commands {

@@ -29,6 +29,7 @@ struct ContentView: View {
     @Environment(DayStore.self) private var dayStore
     @Environment(TimerStore.self) private var timerStore
     @Environment(StreakStore.self) private var streakStore
+    @Environment(ProjectBoardNavigationStore.self) private var projectBoardNavigation
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \PlanDay.date, order: .reverse) private var days: [PlanDay]
@@ -90,6 +91,11 @@ struct ContentView: View {
             )
             .frame(minWidth: 400, minHeight: 260)
             .presentationCornerRadius(12)
+        }
+        .onChange(of: projectBoardNavigation.pendingKanbanCardID) { _, newValue in
+            if newValue != nil {
+                sidebarSelection = .project
+            }
         }
         .onAppear {
             StatusBarController.install(
@@ -1024,6 +1030,7 @@ struct MoveFromPastDaySheet: View {
         .environment(DayStore())
         .environment(TimerStore())
         .environment(StreakStore())
+        .environment(ProjectBoardNavigationStore())
         .modelContainer(for: [
             PlanDay.self,
             PlanTask.self,

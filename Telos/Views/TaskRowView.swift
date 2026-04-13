@@ -21,6 +21,7 @@ struct TaskRowView: View {
     @Binding var editingTaskId: PersistentIdentifier?
     @Environment(\.modelContext) private var modelContext
     @Environment(StreakStore.self) private var streakStore
+    @Environment(ProjectBoardNavigationStore.self) private var projectBoardNavigation
     @State private var isAddingSubtask = false
     @State private var newSubtaskTitle = ""
     @State private var isEditingTitle = false
@@ -139,11 +140,16 @@ struct TaskRowView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if task.linkedKanbanCard != nil {
-                        Image(systemName: "rectangle.split.3x1")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .help("Linked to a project board task")
+                    if let card = task.linkedKanbanCard {
+                        Button {
+                            projectBoardNavigation.openBoard(for: card)
+                        } label: {
+                            Image(systemName: "rectangle.split.3x1")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open this task on the project board")
                     }
 
                     Spacer()
