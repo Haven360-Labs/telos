@@ -608,7 +608,7 @@ private struct KanbanBoardSection: View {
                 newCardBody = ""
                 addCardColumn = column
             } label: {
-                Label("Add card", systemImage: "plus.circle")
+                Label("Add task", systemImage: "plus.circle")
             }
             .buttonStyle(.bordered)
         }
