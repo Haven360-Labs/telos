@@ -41,11 +41,17 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
 struct ProjectHubView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(StreakStore.self) private var streakStore
-    @Query(sort: \Project.createdAt, order: .reverse) private var projects: [Project]
+    @Query(sort: \Project.createdAt, order: .reverse) private var allProjects: [Project]
     @State private var selectedProject: Project?
     @State private var section: ProjectDetailSection = .overview
     @State private var newProjectName = ""
     @State private var showNewProjectSheet = false
+    @State private var showArchivedProjects = false
+    @State private var projectPendingDeletion: Project?
+
+    private var visibleProjects: [Project] {
+        allProjects.filter { showArchivedProjects || !$0.isArchived }
+    }
 
     var body: some View {
         Group {
@@ -58,6 +64,17 @@ struct ProjectHubView: View {
         .navigationTitle(selectedProject == nil ? "Projects" : selectedProject!.name)
         .toolbar {
             if selectedProject == nil {
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showArchivedProjects.toggle()
+                    } label: {
+                        Label(
+                            showArchivedProjects ? "Hide archived" : "Show archived",
+                            systemImage: showArchivedProjects ? "archivebox.fill" : "archivebox"
+                        )
+                    }
+                    .help(showArchivedProjects ? "Hide archived projects" : "Show archived projects")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("New project") {
                         newProjectName = ""
@@ -73,6 +90,49 @@ struct ProjectHubView: View {
                         section = .overview
                     }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    if let project = selectedProject {
+                        Menu {
+                            if project.isArchived {
+                                Button("Unarchive project") {
+                                    setProjectArchived(project, archived: false)
+                                }
+                            } else {
+                                Button("Archive project") {
+                                    setProjectArchived(project, archived: true)
+                                }
+                            }
+                            Divider()
+                            Button("Delete project…", role: .destructive) {
+                                projectPendingDeletion = project
+                            }
+                        } label: {
+                            Label("Project options", systemImage: "ellipsis.circle")
+                        }
+                    }
+                }
+            }
+        }
+        .confirmationDialog(
+            "Delete this project?",
+            isPresented: Binding(
+                get: { projectPendingDeletion != nil },
+                set: { if !$0 { projectPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete project and all of its data", role: .destructive) {
+                if let project = projectPendingDeletion {
+                    deleteProjectPermanently(project)
+                }
+                projectPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                projectPendingDeletion = nil
+            }
+        } message: {
+            if let project = projectPendingDeletion {
+                Text("“\(project.name)” and everything inside it (notes, boards, sprints, retrospectives, timeline, documents) will be permanently removed.")
             }
         }
         .sheet(isPresented: $showNewProjectSheet) {
@@ -82,21 +142,34 @@ struct ProjectHubView: View {
 
     private var projectList: some View {
         Group {
-            if projects.isEmpty {
+            if visibleProjects.isEmpty {
                 ContentUnavailableView(
-                    "No projects yet",
+                    allProjects.isEmpty ? "No projects yet" : "No active projects",
                     systemImage: "folder.badge.plus",
-                    description: Text("Create a project to organize notes, a board, sprints, and more.")
+                    description: Text(
+                        allProjects.isEmpty
+                            ? "Create a project to organize notes, a board, sprints, and more."
+                            : "Turn on “Show archived” to see archived projects, or create a new one."
+                    )
                 )
             } else {
                 List(selection: $selectedProject) {
-                    ForEach(projects) { project in
+                    ForEach(visibleProjects) { project in
                         Button {
                             selectedProject = project
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(project.name)
-                                    .font(.headline)
+                                HStack(spacing: 8) {
+                                    Text(project.name)
+                                        .font(.headline)
+                                    if project.isArchived {
+                                        Text("Archived")
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(.quaternary, in: Capsule())
+                                    }
+                                }
                                 Text(project.createdAt, style: .date)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -105,8 +178,23 @@ struct ProjectHubView: View {
                         }
                         .buttonStyle(.plain)
                         .tag(project)
+                        .contextMenu {
+                            if project.isArchived {
+                                Button("Unarchive project") {
+                                    setProjectArchived(project, archived: false)
+                                }
+                            } else {
+                                Button("Archive project") {
+                                    setProjectArchived(project, archived: true)
+                                }
+                            }
+                            Divider()
+                            Button("Delete project…", role: .destructive) {
+                                projectPendingDeletion = project
+                            }
+                        }
                     }
-                    .onDelete(perform: deleteProjects)
+                    .onDelete(perform: deleteProjectsAtOffsets)
                 }
                 .listStyle(.inset)
             }
@@ -130,7 +218,7 @@ struct ProjectHubView: View {
             Group {
                 switch section {
                 case .overview:
-                    ProjectOverviewSection(project: project, modelContext: modelContext)
+                    ProjectOverviewSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .notes:
                     ProjectNotesSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .board:
@@ -181,14 +269,40 @@ struct ProjectHubView: View {
         .frame(minWidth: 320)
     }
 
-    private func deleteProjects(at offsets: IndexSet) {
+    /// List swipe/delete key: confirm if single row, otherwise delete immediately.
+    private func deleteProjectsAtOffsets(_ offsets: IndexSet) {
+        if offsets.count == 1, let index = offsets.first {
+            projectPendingDeletion = visibleProjects[index]
+            return
+        }
         for index in offsets {
-            let p = projects[index]
-            if selectedProject?.id == p.id {
+            let p = visibleProjects[index]
+            if selectedProject?.persistentModelID == p.persistentModelID {
                 selectedProject = nil
             }
             modelContext.delete(p)
         }
+        try? modelContext.save()
+        streakStore.recordUsage()
+    }
+
+    private func setProjectArchived(_ project: Project, archived: Bool) {
+        project.isArchived = archived
+        project.archivedAt = archived ? Date() : nil
+        if archived, selectedProject?.persistentModelID == project.persistentModelID, !showArchivedProjects {
+            selectedProject = nil
+            section = .overview
+        }
+        try? modelContext.save()
+        streakStore.recordUsage()
+    }
+
+    private func deleteProjectPermanently(_ project: Project) {
+        if selectedProject?.persistentModelID == project.persistentModelID {
+            selectedProject = nil
+            section = .overview
+        }
+        modelContext.delete(project)
         try? modelContext.save()
         streakStore.recordUsage()
     }
@@ -199,6 +313,7 @@ struct ProjectHubView: View {
 private struct ProjectOverviewSection: View {
     @Bindable var project: Project
     var modelContext: ModelContext
+    var streakStore: StreakStore
 
     var body: some View {
         ScrollView {
@@ -212,6 +327,25 @@ private struct ProjectOverviewSection: View {
                 Text("Created \(project.createdAt.formatted(date: .abbreviated, time: .omitted))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                if project.isArchived {
+                    HStack(alignment: .center, spacing: 12) {
+                        Label("This project is archived", systemImage: "archivebox.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        Button("Unarchive") {
+                            project.isArchived = false
+                            project.archivedAt = nil
+                            try? modelContext.save()
+                            streakStore.recordUsage()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                }
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     statTile(title: "Notes", value: "\(project.notes.count)", symbol: "note.text")
@@ -371,7 +505,7 @@ private struct ProjectNotesSection: View {
     }
 
     private func deleteNote(_ note: PlanNote) {
-        if selectedNote?.id == note.id { selectedNote = nil }
+        if selectedNote?.persistentModelID == note.persistentModelID { selectedNote = nil }
         modelContext.delete(note)
         try? modelContext.save()
         streakStore.recordUsage()
@@ -647,30 +781,97 @@ private struct ProjectSprintsSection: View {
     @State private var endDate = Calendar.current.date(byAdding: .day, value: 14, to: Date()) ?? Date()
     @State private var notes = ""
     @State private var selected: ProjectSprint?
+    @State private var showArchivedSprints = false
+    @State private var sprintPendingDeletion: ProjectSprint?
 
-    private var sortedSprints: [ProjectSprint] {
-        project.sprints.sorted { $0.startDate > $1.startDate }
+    private var visibleSprints: [ProjectSprint] {
+        project.sprints
+            .filter { showArchivedSprints || !$0.isArchived }
+            .sorted { $0.startDate > $1.startDate }
     }
 
     var body: some View {
         Group {
             if let sprint = selected {
                 SprintEditorView(sprint: sprint, modelContext: modelContext, streakStore: streakStore)
+            } else if visibleSprints.isEmpty {
+                ContentUnavailableView(
+                    project.sprints.isEmpty ? "No sprints yet" : "No active sprints",
+                    systemImage: "calendar.badge.clock",
+                    description: Text(
+                        project.sprints.isEmpty
+                            ? "Add a sprint to plan a time box and its own board."
+                            : "Turn on “Show archived sprints” to see archived ones."
+                    )
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(selection: $selected) {
-                    ForEach(sortedSprints) { sprint in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(sprint.title)
-                                .font(.headline)
-                            Text("\(sprint.startDate.formatted(date: .abbreviated, time: .omitted)) – \(sprint.endDate.formatted(date: .abbreviated, time: .omitted))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    ForEach(visibleSprints) { sprint in
+                        Button {
+                            selected = sprint
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
+                                    Text(sprint.title)
+                                        .font(.headline)
+                                    if sprint.isArchived {
+                                        Text("Archived")
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(.quaternary, in: Capsule())
+                                    }
+                                }
+                                Text("\(sprint.startDate.formatted(date: .abbreviated, time: .omitted)) – \(sprint.endDate.formatted(date: .abbreviated, time: .omitted))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .buttonStyle(.plain)
                         .tag(sprint)
+                        .contextMenu {
+                            if sprint.isArchived {
+                                Button("Unarchive sprint") {
+                                    setSprintArchived(sprint, archived: false)
+                                }
+                            } else {
+                                Button("Archive sprint") {
+                                    setSprintArchived(sprint, archived: true)
+                                }
+                            }
+                            Divider()
+                            Button("Delete sprint…", role: .destructive) {
+                                sprintPendingDeletion = sprint
+                            }
+                        }
                     }
-                    .onDelete(perform: deleteSprints)
+                    .onDelete(perform: deleteSprintsAtOffsets)
                 }
                 .listStyle(.inset)
+            }
+        }
+        .confirmationDialog(
+            "Delete this sprint?",
+            isPresented: Binding(
+                get: { sprintPendingDeletion != nil },
+                set: { if !$0 { sprintPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete sprint and its board", role: .destructive) {
+                if let sprint = sprintPendingDeletion {
+                    deleteSprintPermanently(sprint)
+                }
+                sprintPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                sprintPendingDeletion = nil
+            }
+        } message: {
+            if let sprint = sprintPendingDeletion {
+                Text("“\(sprint.title)” and its sprint board columns will be removed. Retrospectives that reference this sprint will keep their notes but lose the sprint link.")
             }
         }
         .sheet(isPresented: $showAdd) {
@@ -712,6 +913,16 @@ private struct ProjectSprintsSection: View {
         }
         .toolbar {
             if selected == nil {
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showArchivedSprints.toggle()
+                    } label: {
+                        Label(
+                            showArchivedSprints ? "Hide archived sprints" : "Show archived sprints",
+                            systemImage: showArchivedSprints ? "archivebox.fill" : "archivebox"
+                        )
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add sprint") { showAdd = true }
                 }
@@ -722,14 +933,60 @@ private struct ProjectSprintsSection: View {
                         selected = nil
                     }
                 }
+                ToolbarItem(placement: .automatic) {
+                    if let sprint = selected {
+                        Menu {
+                            if sprint.isArchived {
+                                Button("Unarchive sprint") {
+                                    setSprintArchived(sprint, archived: false)
+                                }
+                            } else {
+                                Button("Archive sprint") {
+                                    setSprintArchived(sprint, archived: true)
+                                }
+                            }
+                            Divider()
+                            Button("Delete sprint…", role: .destructive) {
+                                sprintPendingDeletion = sprint
+                            }
+                        } label: {
+                            Label("Sprint options", systemImage: "ellipsis.circle")
+                        }
+                    }
+                }
             }
         }
     }
 
-    private func deleteSprints(at offsets: IndexSet) {
+    private func setSprintArchived(_ sprint: ProjectSprint, archived: Bool) {
+        sprint.isArchived = archived
+        sprint.archivedAt = archived ? Date() : nil
+        if archived, selected?.persistentModelID == sprint.persistentModelID, !showArchivedSprints {
+            selected = nil
+        }
+        try? modelContext.save()
+        streakStore.recordUsage()
+    }
+
+    private func deleteSprintPermanently(_ sprint: ProjectSprint) {
+        if selected?.persistentModelID == sprint.persistentModelID {
+            selected = nil
+        }
+        modelContext.delete(sprint)
+        try? modelContext.save()
+        streakStore.recordUsage()
+    }
+
+    private func deleteSprintsAtOffsets(_ offsets: IndexSet) {
+        if offsets.count == 1, let index = offsets.first {
+            sprintPendingDeletion = visibleSprints[index]
+            return
+        }
         for index in offsets {
-            let s = sortedSprints[index]
-            if selected?.id == s.id { selected = nil }
+            let s = visibleSprints[index]
+            if selected?.persistentModelID == s.persistentModelID {
+                selected = nil
+            }
             modelContext.delete(s)
         }
         try? modelContext.save()
@@ -774,6 +1031,16 @@ private struct ProjectRetrospectivesSection: View {
                             }
                         }
                         .tag(retro)
+                        .contextMenu {
+                            Button("Delete retrospective", role: .destructive) {
+                                if selected?.persistentModelID == retro.persistentModelID {
+                                    selected = nil
+                                }
+                                modelContext.delete(retro)
+                                try? modelContext.save()
+                                streakStore.recordUsage()
+                            }
+                        }
                     }
                     .onDelete(perform: deleteRetros)
                 }
@@ -845,7 +1112,7 @@ private struct ProjectRetrospectivesSection: View {
     private func deleteRetros(at offsets: IndexSet) {
         for index in offsets {
             let r = sortedRetros[index]
-            if selected?.id == r.id { selected = nil }
+            if selected?.persistentModelID == r.persistentModelID { selected = nil }
             modelContext.delete(r)
         }
         try? modelContext.save()
@@ -890,6 +1157,16 @@ private struct ProjectTimelineSection: View {
                                 .foregroundStyle(.secondary)
                         }
                         .tag(event)
+                        .contextMenu {
+                            Button("Delete event", role: .destructive) {
+                                if selected?.persistentModelID == event.persistentModelID {
+                                    selected = nil
+                                }
+                                modelContext.delete(event)
+                                try? modelContext.save()
+                                streakStore.recordUsage()
+                            }
+                        }
                     }
                     .onDelete(perform: deleteEvents)
                 }
@@ -955,6 +1232,16 @@ private struct ProjectTimelineSection: View {
                         selected = nil
                     }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Delete event", role: .destructive) {
+                        if let event = selected {
+                            modelContext.delete(event)
+                            try? modelContext.save()
+                            selected = nil
+                            streakStore.recordUsage()
+                        }
+                    }
+                }
             }
         }
     }
@@ -962,7 +1249,7 @@ private struct ProjectTimelineSection: View {
     private func deleteEvents(at offsets: IndexSet) {
         for index in offsets {
             let e = sortedEvents[index]
-            if selected?.id == e.id { selected = nil }
+            if selected?.persistentModelID == e.persistentModelID { selected = nil }
             modelContext.delete(e)
         }
         try? modelContext.save()
@@ -1001,13 +1288,14 @@ private struct ProjectDocumentsSection: View {
                     .buttonStyle(.bordered)
                 }
                 .contextMenu {
-                    Button("Remove", role: .destructive) {
+                    Button("Delete document", role: .destructive) {
                         modelContext.delete(doc)
                         try? modelContext.save()
                         streakStore.recordUsage()
                     }
                 }
             }
+            .onDelete(perform: deleteDocuments)
         }
         .listStyle(.inset)
         .toolbar {
@@ -1017,6 +1305,15 @@ private struct ProjectDocumentsSection: View {
                 }
             }
         }
+    }
+
+    private func deleteDocuments(at offsets: IndexSet) {
+        let sortedDocs = project.documents.sorted { $0.addedAt > $1.addedAt }
+        for index in offsets {
+            modelContext.delete(sortedDocs[index])
+        }
+        try? modelContext.save()
+        streakStore.recordUsage()
     }
 
     private func addDocument() {
@@ -1104,6 +1401,24 @@ private struct SprintEditorView: View {
                 case .details:
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
+                            if sprint.isArchived {
+                                HStack(alignment: .center, spacing: 12) {
+                                    Label("This sprint is archived", systemImage: "archivebox.fill")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Spacer(minLength: 0)
+                                    Button("Unarchive") {
+                                        sprint.isArchived = false
+                                        sprint.archivedAt = nil
+                                        try? modelContext.save()
+                                        streakStore.recordUsage()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                }
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                            }
                             TextField("Title", text: $sprint.title)
                                 .font(.title2)
                                 .fontWeight(.semibold)

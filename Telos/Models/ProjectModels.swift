@@ -8,6 +8,9 @@ import SwiftData
 final class Project {
     var name: String
     var createdAt: Date
+    /// Archived projects are hidden from the main list unless “Show archived” is on.
+    var isArchived: Bool = false
+    var archivedAt: Date?
 
     @Relationship(deleteRule: .cascade, inverse: \PlanNote.project)
     var notes: [PlanNote] = []
@@ -27,9 +30,11 @@ final class Project {
     @Relationship(deleteRule: .cascade, inverse: \ProjectDocument.project)
     var documents: [ProjectDocument] = []
 
-    init(name: String, createdAt: Date = Date()) {
+    init(name: String, createdAt: Date = Date(), isArchived: Bool = false, archivedAt: Date? = nil) {
         self.name = name
         self.createdAt = createdAt
+        self.isArchived = isArchived
+        self.archivedAt = archivedAt
     }
 }
 
@@ -82,6 +87,9 @@ final class ProjectSprint {
     var endDate: Date
     var notes: String
     var project: Project?
+    /// Archived sprints are hidden from the main sprint list unless “Show archived” is on.
+    var isArchived: Bool = false
+    var archivedAt: Date?
 
     @Relationship(deleteRule: .cascade, inverse: \ProjectKanbanColumn.sprint)
     var kanbanColumns: [ProjectKanbanColumn] = []
@@ -89,12 +97,14 @@ final class ProjectSprint {
     @Relationship(deleteRule: .nullify, inverse: \ProjectRetrospective.sprint)
     var retrospectives: [ProjectRetrospective] = []
 
-    init(title: String, startDate: Date, endDate: Date, notes: String = "", project: Project? = nil) {
+    init(title: String, startDate: Date, endDate: Date, notes: String = "", project: Project? = nil, isArchived: Bool = false, archivedAt: Date? = nil) {
         self.title = title
         self.startDate = startDate
         self.endDate = endDate
         self.notes = notes
         self.project = project
+        self.isArchived = isArchived
+        self.archivedAt = archivedAt
     }
 }
 
