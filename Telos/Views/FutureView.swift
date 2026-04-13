@@ -1,19 +1,6 @@
 import SwiftUI
 import SwiftData
 
-/// Identifies a top-level future task for drag-reorder within the Future list.
-private struct FutureTopLevelDragPayload: Transferable, Codable, Equatable {
-    var persistentModelID: PersistentIdentifier
-
-    init(task: FutureTask) {
-        self.persistentModelID = task.persistentModelID
-    }
-
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .json)
-    }
-}
-
 /// Future tasks planning view. Add tasks and subtasks here; move them to Today when ready to work on them.
 struct FutureView: View {
     @Environment(\.modelContext) private var modelContext
@@ -51,7 +38,7 @@ struct FutureView: View {
             Text("Future tasks")
                 .font(.title2)
                 .fontWeight(.semibold)
-            Text("Add tasks and subtasks you plan to work on later. Drag tasks to reorder. Move any task to Today when you're ready to start.")
+            Text("Add tasks and subtasks you plan to work on later. Use the arrows beside each task to reorder. Move any task to Today when you're ready to start.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -105,69 +92,35 @@ struct FutureView: View {
 
     private var taskList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(topLevelFutureTasks) { task in
+            ForEach(Array(topLevelFutureTasks.enumerated()), id: \.element.persistentModelID) { index, task in
                 FutureTaskRow(
                     task: task,
                     onMoveToToday: { moveToToday(task) },
                     onDelete: { deleteTask(task) },
-                    onAddSubtask: { addSubtask(to: task, title: $0) }
+                    onAddSubtask: { addSubtask(to: task, title: $0) },
+                    canMoveUp: index > 0,
+                    canMoveDown: index < topLevelFutureTasks.count - 1,
+                    onMoveUp: { moveTopLevelFutureTask(task, direction: -1) },
+                    onMoveDown: { moveTopLevelFutureTask(task, direction: 1) }
                 )
-                .draggable(FutureTopLevelDragPayload(task: task)) {
-                    futureTaskDragPreview(task)
-                }
-                .dropDestination(for: FutureTopLevelDragPayload.self) { items, _ in
-                    guard let payload = items.first else { return false }
-                    return reorderTopLevelFutureTasks(draggedID: payload.persistentModelID, before: task)
-                } isTargeted: { _ in }
             }
-            futureListEndDropZone
         }
     }
 
-    private func futureTaskDragPreview(_ task: FutureTask) -> some View {
-        Text(task.title)
-            .font(.subheadline)
-            .fontWeight(.medium)
-            .lineLimit(2)
-            .padding(10)
-            .frame(minWidth: 120, maxWidth: 240)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-            .shadow(radius: 4)
-    }
-
-    private var futureListEndDropZone: some View {
-        Color.clear
-            .frame(minHeight: 28)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-            .dropDestination(for: FutureTopLevelDragPayload.self) { items, _ in
-                guard let payload = items.first else { return false }
-                return reorderTopLevelFutureTasks(draggedID: payload.persistentModelID, before: nil)
-            } isTargeted: { _ in }
-            .help("Drop here to move to the end of the list")
-    }
-
-    /// Reorders top-level future tasks by rewriting contiguous `sortOrder` (0…n).
-    private func reorderTopLevelFutureTasks(draggedID: PersistentIdentifier, before target: FutureTask?) -> Bool {
-        guard let dragged = try? modelContext.model(for: draggedID) as? FutureTask,
-              dragged.parent == nil else { return false }
-        if let target, dragged.persistentModelID == target.persistentModelID { return true }
-
-        var ordered = topLevelFutureTasks.filter { $0.persistentModelID != dragged.persistentModelID }
-        let insertIndex: Int
-        if let target {
-            guard let idx = ordered.firstIndex(where: { $0.persistentModelID == target.persistentModelID }) else { return false }
-            insertIndex = idx
-        } else {
-            insertIndex = ordered.count
-        }
-        ordered.insert(dragged, at: insertIndex)
-        for (index, t) in ordered.enumerated() {
+    /// Swaps with the adjacent top-level neighbor and rewrites contiguous `sortOrder` (0…n).
+    private func moveTopLevelFutureTask(_ task: FutureTask, direction: Int) {
+        guard task.parent == nil, direction == -1 || direction == 1 else { return }
+        let ordered = topLevelFutureTasks
+        guard let i = ordered.firstIndex(where: { $0.persistentModelID == task.persistentModelID }) else { return }
+        let j = i + direction
+        guard j >= 0, j < ordered.count else { return }
+        var next = ordered
+        next.swapAt(i, j)
+        for (index, t) in next.enumerated() {
             t.sortOrder = index
         }
         try? modelContext.save()
         streakStore.recordUsage()
-        return true
     }
 
     private func addTask() {
@@ -235,6 +188,10 @@ private struct FutureTaskRow: View {
     let onMoveToToday: () -> Void
     let onDelete: () -> Void
     let onAddSubtask: (String) -> Void
+    var canMoveUp: Bool
+    var canMoveDown: Bool
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @State private var isAddingSubtask = false
@@ -245,6 +202,30 @@ private struct FutureTaskRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
+                VStack(spacing: 0) {
+                    Button(action: onMoveUp) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 11, weight: .semibold))
+                            .frame(width: 22, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canMoveUp)
+                    .foregroundStyle(canMoveUp ? Color.secondary : Color.secondary.opacity(0.35))
+
+                    Button(action: onMoveDown) {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .frame(width: 22, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canMoveDown)
+                    .foregroundStyle(canMoveDown ? Color.secondary : Color.secondary.opacity(0.35))
+                }
+                .padding(.top, 2)
+                .help("Move this task up or down in the list")
+
                 if isEditingTitle {
                     VStack(alignment: .leading, spacing: 8) {
                         ZStack(alignment: .topLeading) {
