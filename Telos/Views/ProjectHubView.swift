@@ -14,6 +14,7 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
     case releases
     case testing
     case documents
+    case settings
 
     var id: String { rawValue }
 
@@ -30,6 +31,7 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         case .releases: return "Releases"
         case .testing: return "Testing"
         case .documents: return "Documents"
+        case .settings: return "Settings"
         }
     }
 
@@ -46,6 +48,7 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         case .releases: return "shippingbox"
         case .testing: return "checklist"
         case .documents: return "doc.richtext"
+        case .settings: return "gearshape"
         }
     }
 }
@@ -251,6 +254,8 @@ struct ProjectHubView: View {
                     ProjectTestingHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .documents:
                     ProjectDocumentsSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                case .settings:
+                    ProjectSettingsSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -338,11 +343,9 @@ private struct ProjectOverviewSection: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                TextField("Project name", text: $project.name)
+                Text(project.name)
                     .font(.title2)
                     .fontWeight(.semibold)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { try? modelContext.save() }
 
                 Text("Created \(project.createdAt.formatted(date: .abbreviated, time: .omitted))")
                     .font(.caption)
@@ -413,6 +416,44 @@ private struct ProjectOverviewSection: View {
         }
         .padding(14)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// MARK: - Settings
+
+private struct ProjectSettingsSection: View {
+    @Bindable var project: Project
+    var modelContext: ModelContext
+    var streakStore: StreakStore
+
+    var body: some View {
+        Form {
+            Section("Project") {
+                TextField("Name", text: $project.name)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { persistName() }
+                Text("Created \(project.createdAt.formatted(date: .long, time: .omitted))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Text("Archive or delete this project from the toolbar menu (⋯).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .padding(24)
+        .frame(maxWidth: 560, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onDisappear { persistName() }
+    }
+
+    private func persistName() {
+        let t = project.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        project.name = t.isEmpty ? "Untitled project" : t
+        try? modelContext.save()
+        streakStore.recordUsage()
     }
 }
 
