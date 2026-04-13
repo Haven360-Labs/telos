@@ -100,6 +100,7 @@ final class ProjectKanbanCard {
     var sortOrder: Int
     var column: ProjectKanbanColumn?
     var epic: ProjectEpic?
+    var milestone: ProjectMilestone?
     /// RICE inputs (1–10); 0 means unset in UI.
     var riceReach: Int = 0
     var riceImpact: Int = 0
@@ -115,12 +116,13 @@ final class ProjectKanbanCard {
     @Relationship(deleteRule: .nullify, inverse: \ProjectIssue.kanbanCard)
     var linkedIssues: [ProjectIssue] = []
 
-    init(title: String, body: String = "", sortOrder: Int = 0, column: ProjectKanbanColumn? = nil, epic: ProjectEpic? = nil) {
+    init(title: String, body: String = "", sortOrder: Int = 0, column: ProjectKanbanColumn? = nil, epic: ProjectEpic? = nil, milestone: ProjectMilestone? = nil) {
         self.title = title
         self.body = body
         self.sortOrder = sortOrder
         self.column = column
         self.epic = epic
+        self.milestone = milestone
     }
 }
 
@@ -259,6 +261,9 @@ final class ProjectRoadmapItem {
     var project: Project?
     var epic: ProjectEpic?
 
+    @Relationship(deleteRule: .nullify, inverse: \ProjectMilestone.roadmapItem)
+    var milestones: [ProjectMilestone] = []
+
     init(
         title: String,
         targetStart: Date,
@@ -329,14 +334,30 @@ final class ProjectMilestone {
     var sortOrder: Int
     var project: Project?
     var epic: ProjectEpic?
+    var roadmapItem: ProjectRoadmapItem?
 
-    init(title: String, targetDate: Date, isCompleted: Bool = false, sortOrder: Int = 0, project: Project? = nil, epic: ProjectEpic? = nil) {
+    @Relationship(deleteRule: .nullify, inverse: \ProjectIssue.milestone)
+    var linkedIssues: [ProjectIssue] = []
+
+    @Relationship(deleteRule: .nullify, inverse: \ProjectKanbanCard.milestone)
+    var linkedKanbanCards: [ProjectKanbanCard] = []
+
+    init(
+        title: String,
+        targetDate: Date,
+        isCompleted: Bool = false,
+        sortOrder: Int = 0,
+        project: Project? = nil,
+        epic: ProjectEpic? = nil,
+        roadmapItem: ProjectRoadmapItem? = nil
+    ) {
         self.title = title
         self.targetDate = targetDate
         self.isCompleted = isCompleted
         self.sortOrder = sortOrder
         self.project = project
         self.epic = epic
+        self.roadmapItem = roadmapItem
     }
 }
 
@@ -398,6 +419,7 @@ final class ProjectIssue {
     var epic: ProjectEpic?
     var sprint: ProjectSprint?
     var kanbanCard: ProjectKanbanCard?
+    var milestone: ProjectMilestone?
 
     init(
         title: String,
@@ -415,7 +437,8 @@ final class ProjectIssue {
         project: Project? = nil,
         epic: ProjectEpic? = nil,
         sprint: ProjectSprint? = nil,
-        kanbanCard: ProjectKanbanCard? = nil
+        kanbanCard: ProjectKanbanCard? = nil,
+        milestone: ProjectMilestone? = nil
     ) {
         self.title = title
         self.detail = detail
@@ -433,6 +456,7 @@ final class ProjectIssue {
         self.epic = epic
         self.sprint = sprint
         self.kanbanCard = kanbanCard
+        self.milestone = milestone
     }
 }
 

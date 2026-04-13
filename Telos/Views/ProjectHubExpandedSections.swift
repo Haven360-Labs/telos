@@ -5,11 +5,16 @@ import SwiftData
 
 struct KanbanCardInspectorSheet: View {
     @Bindable var card: ProjectKanbanCard
+    var project: Project?
     var modelContext: ModelContext
     var streakStore: StreakStore
     var onDismiss: () -> Void
 
     @State private var newChecklistTitle = ""
+
+    private var sortedMilestones: [ProjectMilestone] {
+        (project?.milestones ?? []).sorted { $0.targetDate < $1.targetDate }
+    }
 
     private var sortedChecklist: [ProjectKanbanChecklistItem] {
         card.checklistItems.sorted { $0.sortOrder < $1.sortOrder }
@@ -18,6 +23,16 @@ struct KanbanCardInspectorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if project != nil {
+                    Section("Milestone") {
+                        Picker("Link to milestone", selection: $card.milestone) {
+                            Text("None").tag(nil as ProjectMilestone?)
+                            ForEach(sortedMilestones) { m in
+                                Text(m.title.isEmpty ? "Milestone" : m.title).tag(m as ProjectMilestone?)
+                            }
+                        }
+                    }
+                }
                 Section("RICE (1–10, 0 = unset)") {
                     Stepper("Reach: \(card.riceReach)", value: $card.riceReach, in: 0...10)
                     Stepper("Impact: \(card.riceImpact)", value: $card.riceImpact, in: 0...10)
@@ -232,6 +247,24 @@ struct ProjectRoadmapHubSection: View {
                     .frame(minHeight: 100)
                     .padding(8)
                     .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+
+                if !item.milestones.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Milestones")
+                            .font(.headline)
+                        ForEach(item.milestones.sorted { $0.targetDate < $1.targetDate }) { ms in
+                            HStack {
+                                Text(ms.title)
+                                Spacer()
+                                Text(ms.targetDate.formatted(date: .abbreviated, time: .omitted))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
             }
             .padding(24)
         }
@@ -260,9 +293,14 @@ struct ProjectMilestonesHubSection: View {
     @State private var showAdd = false
     @State private var addTitle = ""
     @State private var addDate = Date()
+    @State private var addRoadmap: ProjectRoadmapItem?
 
     private var sortedMilestones: [ProjectMilestone] {
         project.milestones.sorted { $0.targetDate < $1.targetDate }
+    }
+
+    private var sortedRoadmapItems: [ProjectRoadmapItem] {
+        project.roadmapItems.sorted { $0.targetStart < $1.targetStart }
     }
 
     var body: some View {
@@ -279,6 +317,11 @@ struct ProjectMilestonesHubSection: View {
                                 Text(row.targetDate.formatted(date: .abbreviated, time: .omitted))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                if let rm = row.roadmapItem {
+                                    Text(rm.title)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
                             }
                             Spacer()
                             Toggle("", isOn: $row.isCompleted)
@@ -296,6 +339,12 @@ struct ProjectMilestonesHubSection: View {
                 Text("Milestone").font(.headline)
                 TextField("Title", text: $addTitle).textFieldStyle(.roundedBorder)
                 DatePicker("Target date", selection: $addDate, displayedComponents: .date)
+                Picker("Roadmap item", selection: $addRoadmap) {
+                    Text("None").tag(nil as ProjectRoadmapItem?)
+                    ForEach(sortedRoadmapItems) { rm in
+                        Text(rm.title).tag(rm as ProjectRoadmapItem?)
+                    }
+                }
                 HStack {
                     Spacer()
                     Button("Cancel") { showAdd = false }
@@ -308,7 +357,8 @@ struct ProjectMilestonesHubSection: View {
                             targetDate: Calendar.current.startOfDay(for: addDate),
                             sortOrder: next,
                             project: project,
-                            epic: nil
+                            epic: nil,
+                            roadmapItem: addRoadmap
                         )
                         modelContext.insert(m)
                         project.milestones.append(m)
@@ -316,6 +366,7 @@ struct ProjectMilestonesHubSection: View {
                         streakStore.recordUsage()
                         showAdd = false
                         addTitle = ""
+                        addRoadmap = nil
                     }
                     .keyboardShortcut(.defaultAction)
                 }
@@ -326,7 +377,10 @@ struct ProjectMilestonesHubSection: View {
         .toolbar {
             if selected == nil {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Add milestone") { showAdd = true }
+                    Button("Add milestone") {
+                        addRoadmap = nil
+                        showAdd = true
+                    }
                 }
             } else {
                 ToolbarItem(placement: .cancellationAction) {
@@ -355,6 +409,12 @@ struct ProjectMilestonesHubSection: View {
             TextField("Title", text: $m.title)
             DatePicker("Target date", selection: $m.targetDate, displayedComponents: .date)
             Toggle("Completed", isOn: $m.isCompleted)
+            Picker("Roadmap item", selection: $m.roadmapItem) {
+                Text("None").tag(nil as ProjectRoadmapItem?)
+                ForEach(sortedRoadmapItems) { rm in
+                    Text(rm.title).tag(rm as ProjectRoadmapItem?)
+                }
+            }
         }
         .formStyle(.grouped)
         .padding()
@@ -531,7 +591,7 @@ struct ProjectReleasesHubSection: View {
     }
 }
 
-// MARK: - Issues
+// MARK: - Tasks (issues)
 
 struct ProjectIssuesHubSection: View {
     @Bindable var project: Project
@@ -546,6 +606,10 @@ struct ProjectIssuesHubSection: View {
 
     private var sortedSprints: [ProjectSprint] {
         project.sprints.sorted { $0.startDate > $1.startDate }
+    }
+
+    private var sortedMilestones: [ProjectMilestone] {
+        project.milestones.sorted { $0.targetDate < $1.targetDate }
     }
 
     private var allCards: [ProjectKanbanCard] {
@@ -579,6 +643,11 @@ struct ProjectIssuesHubSection: View {
                                 Text("\(row.kind) · \(row.status)")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                if let ms = row.milestone {
+                                    Text(ms.title)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
                             }
                             .tag(row)
                         }
@@ -593,6 +662,7 @@ struct ProjectIssuesHubSection: View {
                 project: project,
                 modelContext: modelContext,
                 streakStore: streakStore,
+                sortedMilestones: sortedMilestones,
                 sortedSprints: sortedSprints,
                 allCards: allCards,
                 onDismiss: { showAdd = false }
@@ -601,7 +671,7 @@ struct ProjectIssuesHubSection: View {
         .toolbar {
             if selected == nil {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Add issue") { showAdd = true }
+                    Button("Add task") { showAdd = true }
                 }
             } else {
                 ToolbarItem(placement: .cancellationAction) {
@@ -631,6 +701,12 @@ struct ProjectIssuesHubSection: View {
             TextField("Kind", text: $issue.kind)
             TextField("Status", text: $issue.status)
             TextField("Priority", text: $issue.priority)
+            Picker("Milestone", selection: $issue.milestone) {
+                Text("None").tag(nil as ProjectMilestone?)
+                ForEach(sortedMilestones) { m in
+                    Text(m.title.isEmpty ? "Milestone" : m.title).tag(m as ProjectMilestone?)
+                }
+            }
             Picker("Sprint", selection: $issue.sprint) {
                 Text("None").tag(nil as ProjectSprint?)
                 ForEach(sortedSprints) { s in
@@ -688,6 +764,7 @@ private struct IssueAddSheet: View {
     var project: Project
     var modelContext: ModelContext
     var streakStore: StreakStore
+    var sortedMilestones: [ProjectMilestone]
     var sortedSprints: [ProjectSprint]
     var allCards: [ProjectKanbanCard]
     var onDismiss: () -> Void
@@ -697,16 +774,23 @@ private struct IssueAddSheet: View {
     @State private var kind = "task"
     @State private var status = "open"
     @State private var priority = "medium"
+    @State private var milestone: ProjectMilestone?
     @State private var sprint: ProjectSprint?
     @State private var card: ProjectKanbanCard?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("New issue").font(.headline)
+            Text("New task").font(.headline)
             TextField("Title", text: $title).textFieldStyle(.roundedBorder)
             TextField("Kind", text: $kind).textFieldStyle(.roundedBorder)
             TextField("Status", text: $status).textFieldStyle(.roundedBorder)
             TextField("Priority", text: $priority).textFieldStyle(.roundedBorder)
+            Picker("Milestone", selection: $milestone) {
+                Text("None").tag(nil as ProjectMilestone?)
+                ForEach(sortedMilestones) { m in
+                    Text(m.title.isEmpty ? "Milestone" : m.title).tag(m as ProjectMilestone?)
+                }
+            }
             Picker("Sprint", selection: $sprint) {
                 Text("None").tag(nil as ProjectSprint?)
                 ForEach(sortedSprints) { s in
@@ -735,7 +819,8 @@ private struct IssueAddSheet: View {
                         project: project,
                         epic: nil,
                         sprint: sprint,
-                        kanbanCard: card
+                        kanbanCard: card,
+                        milestone: milestone
                     )
                     modelContext.insert(issue)
                     project.issues.append(issue)

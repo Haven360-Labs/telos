@@ -5,14 +5,14 @@ import AppKit
 private enum ProjectDetailSection: String, CaseIterable, Identifiable {
     case overview
     case roadmap
+    case milestones
+    case issues
     case notes
     case board
     case sprints
     case retrospectives
     case timeline
-    case milestones
     case releases
-    case issues
     case testing
     case documents
 
@@ -22,14 +22,14 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         switch self {
         case .overview: return "Overview"
         case .roadmap: return "Roadmap"
+        case .milestones: return "Milestones"
+        case .issues: return "Tasks"
         case .notes: return "Notes"
         case .board: return "Board"
         case .sprints: return "Sprints"
         case .retrospectives: return "Retrospectives"
         case .timeline: return "Timeline"
-        case .milestones: return "Milestones"
         case .releases: return "Releases"
-        case .issues: return "Issues"
         case .testing: return "Testing"
         case .documents: return "Documents"
         }
@@ -39,14 +39,14 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         switch self {
         case .overview: return "rectangle.grid.1x2"
         case .roadmap: return "map"
+        case .milestones: return "flag.checkered"
+        case .issues: return "checkmark.circle"
         case .notes: return "note.text"
         case .board: return "rectangle.split.3x1"
         case .sprints: return "calendar.badge.clock"
         case .retrospectives: return "arrow.triangle.2.circlepath"
         case .timeline: return "timeline.selection"
-        case .milestones: return "flag.checkered"
         case .releases: return "shippingbox"
-        case .issues: return "ladybug"
         case .testing: return "checklist"
         case .documents: return "doc.richtext"
         }
@@ -236,6 +236,10 @@ struct ProjectHubView: View {
                     ProjectOverviewSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .roadmap:
                     ProjectRoadmapHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                case .milestones:
+                    ProjectMilestonesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                case .issues:
+                    ProjectIssuesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .notes:
                     ProjectNotesSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .board:
@@ -246,12 +250,8 @@ struct ProjectHubView: View {
                     ProjectRetrospectivesSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .timeline:
                     ProjectTimelineSection(project: project, modelContext: modelContext, streakStore: streakStore)
-                case .milestones:
-                    ProjectMilestonesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .releases:
                     ProjectReleasesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
-                case .issues:
-                    ProjectIssuesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .testing:
                     ProjectTestingHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .documents:
@@ -377,7 +377,7 @@ private struct ProjectOverviewSection: View {
                     statTile(title: "Board cards", value: "\(cardCount)", symbol: "rectangle.split.3x1")
                     statTile(title: "Milestones", value: "\(project.milestones.count)", symbol: "flag.checkered")
                     statTile(title: "Releases", value: "\(project.releases.count)", symbol: "shippingbox")
-                    statTile(title: "Open issues", value: "\(openIssueCount)", symbol: "ladybug")
+                    statTile(title: "Open tasks", value: "\(openIssueCount)", symbol: "checkmark.circle")
                     statTile(title: "Sprints", value: "\(project.sprints.count)", symbol: "calendar.badge.clock")
                     statTile(title: "Documents", value: "\(project.documents.count)", symbol: "doc.richtext")
                 }
@@ -549,6 +549,8 @@ private struct ProjectNotesSection: View {
 /// Shared kanban UI for the project main board or a sprint board.
 private struct KanbanBoardSection: View {
     var columns: [ProjectKanbanColumn]
+    /// Project whose milestones appear in the card inspector (optional milestone link).
+    var project: Project?
     var modelContext: ModelContext
     var streakStore: StreakStore
 
@@ -582,6 +584,7 @@ private struct KanbanBoardSection: View {
         .sheet(item: $cardForInspector) { card in
             KanbanCardInspectorSheet(
                 card: card,
+                project: project,
                 modelContext: modelContext,
                 streakStore: streakStore,
                 onDismiss: { cardForInspector = nil }
@@ -782,7 +785,7 @@ private struct ProjectBoardSection: View {
     }
 
     var body: some View {
-        KanbanBoardSection(columns: mainBoardColumns, modelContext: modelContext, streakStore: streakStore)
+        KanbanBoardSection(columns: mainBoardColumns, project: project, modelContext: modelContext, streakStore: streakStore)
     }
 }
 
@@ -1482,7 +1485,7 @@ private struct SprintEditorView: View {
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
                 case .board:
-                    KanbanBoardSection(columns: sprintBoardColumns, modelContext: modelContext, streakStore: streakStore)
+                    KanbanBoardSection(columns: sprintBoardColumns, project: sprint.project, modelContext: modelContext, streakStore: streakStore)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
