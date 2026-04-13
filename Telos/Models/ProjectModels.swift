@@ -557,20 +557,6 @@ enum KanbanCardScoring {
         guard card.wsjfJobSize > eps, card.wsjfCostOfDelay > 0 else { return nil }
         return card.wsjfCostOfDelay / max(card.wsjfJobSize, eps)
     }
-
-    static func riceScore(issue: ProjectIssue) -> Double? {
-        guard issue.riceEffort > 0,
-              issue.riceReach > 0, issue.riceReach <= 10,
-              issue.riceImpact > 0, issue.riceImpact <= 10,
-              issue.riceConfidence > 0, issue.riceConfidence <= 10 else { return nil }
-        return Double(issue.riceReach * issue.riceImpact * issue.riceConfidence) / Double(issue.riceEffort)
-    }
-
-    static func wsjfScore(issue: ProjectIssue) -> Double? {
-        let eps = 0.000_001
-        guard issue.wsjfJobSize > eps, issue.wsjfCostOfDelay > 0 else { return nil }
-        return issue.wsjfCostOfDelay / max(issue.wsjfJobSize, eps)
-    }
 }
 
 // MARK: - Defaults

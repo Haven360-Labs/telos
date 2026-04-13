@@ -386,8 +386,13 @@ private struct ProjectOverviewSection: View {
         project.kanbanColumns.filter { $0.sprint == nil }.reduce(0) { $0 + $1.cards.count }
     }
 
+    /// Main-board kanban cards not in a column titled “Done” (same notion as “open tasks” as the board).
     private var openIssueCount: Int {
-        project.issues.filter { !["done", "closed"].contains($0.status.lowercased()) }.count
+        let mainCols = project.kanbanColumns.filter { $0.sprint == nil }
+        return mainCols.flatMap(\.cards).filter { card in
+            guard let col = card.column else { return true }
+            return col.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "done"
+        }.count
     }
 
     private func statTile(title: String, value: String, symbol: String) -> some View {
@@ -549,7 +554,6 @@ private struct KanbanBoardSection: View {
     var modelContext: ModelContext
     var streakStore: StreakStore
 
-    @State private var cardToEdit: ProjectKanbanCard?
     @State private var cardForInspector: ProjectKanbanCard?
     @State private var newCardTitle = ""
     @State private var newCardBody = ""
@@ -573,13 +577,11 @@ private struct KanbanBoardSection: View {
         .sheet(item: $addCardColumn) { column in
             newCardSheet(column: column)
         }
-        .sheet(item: $cardToEdit) { card in
-            editCardSheet(card: card)
-        }
         .sheet(item: $cardForInspector) { card in
             KanbanCardInspectorSheet(
                 card: card,
                 project: project,
+                columnsForMove: sortedColumns,
                 modelContext: modelContext,
                 streakStore: streakStore,
                 onDismiss: { cardForInspector = nil }
@@ -658,10 +660,7 @@ private struct KanbanBoardSection: View {
                     }
                 }
                 Divider()
-                Button("Edit…") {
-                    cardToEdit = card
-                }
-                Button("Details & scoring…") {
+                Button("Edit card…") {
                     cardForInspector = card
                 }
                 Button("Delete", role: .destructive) {
@@ -761,13 +760,6 @@ private struct KanbanBoardSection: View {
         .frame(minWidth: 320)
     }
 
-    private func editCardSheet(card: ProjectKanbanCard) -> some View {
-        EditKanbanCardSheet(card: card, onDismiss: {
-            cardToEdit = nil
-            try? modelContext.save()
-            streakStore.recordUsage()
-        })
-    }
 }
 
 private enum ProjectWorkHubTab: String, CaseIterable, Identifiable {
@@ -776,7 +768,7 @@ private enum ProjectWorkHubTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// Single hub for the main kanban board and the task list (`ProjectIssue`).
+/// Single hub for the main kanban board and the task list (same `ProjectKanbanCard` data).
 private struct ProjectBoardAndTasksSection: View {
     var project: Project
     var modelContext: ModelContext
@@ -802,7 +794,7 @@ private struct ProjectBoardAndTasksSection: View {
                 case .board:
                     ProjectBoardSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .tasks:
-                    ProjectIssuesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                    ProjectMainBoardTaskListSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -821,32 +813,6 @@ private struct ProjectBoardSection: View {
 
     var body: some View {
         KanbanBoardSection(columns: mainBoardColumns, project: project, modelContext: modelContext, streakStore: streakStore)
-    }
-}
-
-private struct EditKanbanCardSheet: View {
-    @Bindable var card: ProjectKanbanCard
-    var onDismiss: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Edit card")
-                .font(.headline)
-            TextField("Title", text: $card.title)
-                .textFieldStyle(.roundedBorder)
-            TextEditor(text: $card.body)
-                .font(.body)
-                .frame(height: 120)
-                .padding(8)
-                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
-            HStack {
-                Spacer()
-                Button("Done") { onDismiss() }
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(20)
-        .frame(minWidth: 320)
     }
 }
 

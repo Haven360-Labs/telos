@@ -1,14 +1,16 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Kanban card inspector (RICE, WSJF, checklist)
+// MARK: - Kanban card editor (shared by board inspector & task list)
 
-struct KanbanCardInspectorSheet: View {
+/// Single editor for a `ProjectKanbanCard` — same fields as the board and Tasks tab.
+struct KanbanCardDetailForm: View {
     @Bindable var card: ProjectKanbanCard
     var project: Project?
+    /// When set (e.g. main or sprint board), user can move the card between these columns.
+    var columnsForMove: [ProjectKanbanColumn]?
     var modelContext: ModelContext
     var streakStore: StreakStore
-    var onDismiss: () -> Void
 
     @State private var newChecklistTitle = ""
 
@@ -16,87 +18,142 @@ struct KanbanCardInspectorSheet: View {
         (project?.milestones ?? []).sorted { $0.targetDate < $1.targetDate }
     }
 
+    private var sortedColumns: [ProjectKanbanColumn] {
+        (columnsForMove ?? []).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     private var sortedChecklist: [ProjectKanbanChecklistItem] {
         card.checklistItems.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                if project != nil {
-                    Section("Milestone") {
-                        Picker("Link to milestone", selection: $card.milestone) {
-                            Text("None").tag(nil as ProjectMilestone?)
-                            ForEach(sortedMilestones) { m in
-                                Text(m.title.isEmpty ? "Milestone" : m.title).tag(m as ProjectMilestone?)
-                            }
-                        }
-                    }
-                }
-                Section("RICE (1–10, 0 = unset)") {
-                    Stepper("Reach: \(card.riceReach)", value: $card.riceReach, in: 0...10)
-                    Stepper("Impact: \(card.riceImpact)", value: $card.riceImpact, in: 0...10)
-                    Stepper("Confidence: \(card.riceConfidence)", value: $card.riceConfidence, in: 0...10)
-                    Stepper("Effort: \(card.riceEffort)", value: $card.riceEffort, in: 0...10)
-                    if let r = KanbanCardScoring.riceScore(card: card) {
-                        Text("RICE score: \(r, format: .number.precision(.fractionLength(2)))")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Set all values with Effort > 0 to see score")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                Section("WSJF (0 = unset)") {
-                    TextField("Cost of delay", value: $card.wsjfCostOfDelay, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Job size", value: $card.wsjfJobSize, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                    if let w = KanbanCardScoring.wsjfScore(card: card) {
-                        Text("WSJF score: \(w, format: .number.precision(.fractionLength(3)))")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Set cost of delay and job size > 0")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                Section("Checklist") {
-                    ForEach(sortedChecklist) { item in
-                        @Bindable var item = item
-                        HStack {
-                            Toggle(item.title, isOn: $item.isDone)
-                            Spacer()
-                            Button(role: .destructive) {
-                                modelContext.delete(item)
-                                try? modelContext.save()
+        Form {
+            Section("Card") {
+                TextField("Title", text: $card.title)
+                TextEditor(text: $card.body)
+                    .frame(minHeight: 72)
+                    .padding(6)
+                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+            }
+            if !sortedColumns.isEmpty {
+                Section("Column") {
+                    Picker(
+                        "Column",
+                        selection: Binding(
+                            get: { card.column },
+                            set: { newCol in
+                                guard let newCol else { return }
+                                guard newCol.persistentModelID != card.column?.persistentModelID else { return }
+                                KanbanBoardDragSupport.drop(
+                                    dragged: card,
+                                    targetColumn: newCol,
+                                    before: nil,
+                                    modelContext: modelContext
+                                )
                                 streakStore.recordUsage()
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
                             }
-                            .buttonStyle(.plain)
+                        )
+                    ) {
+                        ForEach(sortedColumns) { col in
+                            Text(col.title).tag(Optional(col))
                         }
-                    }
-                    HStack {
-                        TextField("New item", text: $newChecklistTitle)
-                            .textFieldStyle(.roundedBorder)
-                        Button("Add") {
-                            let t = newChecklistTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !t.isEmpty else { return }
-                            let next = (card.checklistItems.map(\.sortOrder).max() ?? -1) + 1
-                            let item = ProjectKanbanChecklistItem(title: t, sortOrder: next, card: card)
-                            modelContext.insert(item)
-                            card.checklistItems.append(item)
-                            try? modelContext.save()
-                            streakStore.recordUsage()
-                            newChecklistTitle = ""
-                        }
-                        .disabled(newChecklistTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
             }
-            .formStyle(.grouped)
-            .navigationTitle("Card details")
+            if project != nil {
+                Section("Milestone") {
+                    Picker("Link to milestone", selection: $card.milestone) {
+                        Text("None").tag(nil as ProjectMilestone?)
+                        ForEach(sortedMilestones) { m in
+                            Text(m.title.isEmpty ? "Milestone" : m.title).tag(m as ProjectMilestone?)
+                        }
+                    }
+                }
+            }
+            Section("RICE (1–10, 0 = unset)") {
+                Stepper("Reach: \(card.riceReach)", value: $card.riceReach, in: 0...10)
+                Stepper("Impact: \(card.riceImpact)", value: $card.riceImpact, in: 0...10)
+                Stepper("Confidence: \(card.riceConfidence)", value: $card.riceConfidence, in: 0...10)
+                Stepper("Effort: \(card.riceEffort)", value: $card.riceEffort, in: 0...10)
+                if let r = KanbanCardScoring.riceScore(card: card) {
+                    Text("RICE score: \(r, format: .number.precision(.fractionLength(2)))")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Set all values with Effort > 0 to see score")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Section("WSJF (0 = unset)") {
+                TextField("Cost of delay", value: $card.wsjfCostOfDelay, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Job size", value: $card.wsjfJobSize, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                if let w = KanbanCardScoring.wsjfScore(card: card) {
+                    Text("WSJF score: \(w, format: .number.precision(.fractionLength(3)))")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Set cost of delay and job size > 0")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Section("Checklist") {
+                ForEach(sortedChecklist) { item in
+                    @Bindable var item = item
+                    HStack {
+                        Toggle(item.title, isOn: $item.isDone)
+                        Spacer()
+                        Button(role: .destructive) {
+                            modelContext.delete(item)
+                            try? modelContext.save()
+                            streakStore.recordUsage()
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                HStack {
+                    TextField("New item", text: $newChecklistTitle)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Add") {
+                        let t = newChecklistTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !t.isEmpty else { return }
+                        let next = (card.checklistItems.map(\.sortOrder).max() ?? -1) + 1
+                        let item = ProjectKanbanChecklistItem(title: t, sortOrder: next, card: card)
+                        modelContext.insert(item)
+                        card.checklistItems.append(item)
+                        try? modelContext.save()
+                        streakStore.recordUsage()
+                        newChecklistTitle = ""
+                    }
+                    .disabled(newChecklistTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct KanbanCardInspectorSheet: View {
+    @Bindable var card: ProjectKanbanCard
+    var project: Project?
+    var columnsForMove: [ProjectKanbanColumn]?
+    var modelContext: ModelContext
+    var streakStore: StreakStore
+    var onDismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            KanbanCardDetailForm(
+                card: card,
+                project: project,
+                columnsForMove: columnsForMove,
+                modelContext: modelContext,
+                streakStore: streakStore
+            )
+            .navigationTitle("Card")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
@@ -591,58 +648,67 @@ struct ProjectReleasesHubSection: View {
     }
 }
 
-// MARK: - Tasks (issues)
+// MARK: - Tasks (main board cards — same data as Board)
 
-struct ProjectIssuesHubSection: View {
+/// Lists and edits **`ProjectKanbanCard`** on the project’s main board (not sprint boards).
+struct ProjectMainBoardTaskListSection: View {
     @Bindable var project: Project
     var modelContext: ModelContext
     var streakStore: StreakStore
 
-    @State private var selected: ProjectIssue?
-    @State private var filterStatus = "all"
+    @State private var selected: ProjectKanbanCard?
+    @State private var filterColumn: ProjectKanbanColumn?
     @State private var showAdd = false
 
-    private let statuses = ["all", "open", "in progress", "done", "closed"]
-
-    private var sortedSprints: [ProjectSprint] {
-        project.sprints.sorted { $0.startDate > $1.startDate }
+    private var mainBoardColumns: [ProjectKanbanColumn] {
+        project.kanbanColumns.filter { $0.sprint == nil }.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     private var sortedMilestones: [ProjectMilestone] {
         project.milestones.sorted { $0.targetDate < $1.targetDate }
     }
 
-    private var allCards: [ProjectKanbanCard] {
-        project.kanbanColumns.flatMap(\.cards)
-    }
-
-    private var visibleIssues: [ProjectIssue] {
-        let list = project.issues.sorted { $0.createdAt > $1.createdAt }
-        if filterStatus == "all" { return list }
-        return list.filter { $0.status.lowercased() == filterStatus }
+    private var visibleCards: [ProjectKanbanCard] {
+        mainBoardColumns.flatMap { col in
+            col.sortedCards.filter { card in
+                filterColumn == nil || card.column?.persistentModelID == filterColumn?.persistentModelID
+            }
+        }
     }
 
     var body: some View {
         Group {
-            if let issue = selected {
-                issueDetail(issue)
+            if let card = selected {
+                KanbanCardDetailForm(
+                    card: card,
+                    project: project,
+                    columnsForMove: mainBoardColumns,
+                    modelContext: modelContext,
+                    streakStore: streakStore
+                )
+                .padding()
+                .onDisappear { try? modelContext.save() }
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    Picker("Status", selection: $filterStatus) {
-                        ForEach(statuses, id: \.self) { s in
-                            Text(s.capitalized).tag(s)
+                    Picker("Column filter", selection: $filterColumn) {
+                        Text("All columns").tag(nil as ProjectKanbanColumn?)
+                        ForEach(mainBoardColumns) { col in
+                            Text(col.title).tag(col as ProjectKanbanColumn?)
                         }
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     List(selection: $selected) {
-                        ForEach(visibleIssues) { row in
+                        ForEach(visibleCards) { row in
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(row.title).font(.headline)
-                                Text("\(row.kind) · \(row.status)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Text(row.title.isEmpty ? "Untitled" : row.title)
+                                    .font(.headline)
+                                if let col = row.column {
+                                    Text(col.title)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                                 if let ms = row.milestone {
                                     Text(ms.title)
                                         .font(.caption2)
@@ -658,13 +724,12 @@ struct ProjectIssuesHubSection: View {
             }
         }
         .sheet(isPresented: $showAdd) {
-            IssueAddSheet(
+            MainBoardNewCardSheet(
                 project: project,
+                mainBoardColumns: mainBoardColumns,
+                sortedMilestones: sortedMilestones,
                 modelContext: modelContext,
                 streakStore: streakStore,
-                sortedMilestones: sortedMilestones,
-                sortedSprints: sortedSprints,
-                allCards: allCards,
                 onDismiss: { showAdd = false }
             )
         }
@@ -682,8 +747,8 @@ struct ProjectIssuesHubSection: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Delete", role: .destructive) {
-                        if let i = selected {
-                            modelContext.delete(i)
+                        if let c = selected {
+                            modelContext.delete(c)
                             selected = nil
                             try? modelContext.save()
                             streakStore.recordUsage()
@@ -694,145 +759,74 @@ struct ProjectIssuesHubSection: View {
         }
     }
 
-    private func issueDetail(_ issue: ProjectIssue) -> some View {
-        @Bindable var issue = issue
-        return Form {
-            TextField("Title", text: $issue.title)
-            TextField("Kind", text: $issue.kind)
-            TextField("Status", text: $issue.status)
-            TextField("Priority", text: $issue.priority)
-            Picker("Milestone", selection: $issue.milestone) {
-                Text("None").tag(nil as ProjectMilestone?)
-                ForEach(sortedMilestones) { m in
-                    Text(m.title.isEmpty ? "Milestone" : m.title).tag(m as ProjectMilestone?)
-                }
-            }
-            Picker("Sprint", selection: $issue.sprint) {
-                Text("None").tag(nil as ProjectSprint?)
-                ForEach(sortedSprints) { s in
-                    Text(s.title).tag(s as ProjectSprint?)
-                }
-            }
-            Picker("Kanban card", selection: $issue.kanbanCard) {
-                Text("None").tag(nil as ProjectKanbanCard?)
-                ForEach(allCards) { c in
-                    Text(c.title.isEmpty ? "Untitled card" : c.title).tag(c as ProjectKanbanCard?)
-                }
-            }
-            Section {
-                Stepper("Reach: \(issue.riceReach)", value: $issue.riceReach, in: 0...10)
-                Stepper("Impact: \(issue.riceImpact)", value: $issue.riceImpact, in: 0...10)
-                Stepper("Confidence: \(issue.riceConfidence)", value: $issue.riceConfidence, in: 0...10)
-                Stepper("Effort: \(issue.riceEffort)", value: $issue.riceEffort, in: 0...10)
-                if let r = KanbanCardScoring.riceScore(issue: issue) {
-                    Text("RICE score: \(r, format: .number.precision(.fractionLength(2)))")
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("RICE (1–10, 0 = unset)")
-            }
-            Section {
-                TextField("Cost of delay", value: $issue.wsjfCostOfDelay, format: .number)
-                TextField("Job size", value: $issue.wsjfJobSize, format: .number)
-                if let w = KanbanCardScoring.wsjfScore(issue: issue) {
-                    Text("WSJF score: \(w, format: .number.precision(.fractionLength(3)))")
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("WSJF (0 = unset)")
-            }
-            TextEditor(text: $issue.detail)
-                .frame(minHeight: 120)
-        }
-        .formStyle(.grouped)
-        .padding()
-        .onDisappear { try? modelContext.save() }
-    }
-
     private func deleteAt(_ offsets: IndexSet) {
         for index in offsets {
-            let i = visibleIssues[index]
-            if selected?.persistentModelID == i.persistentModelID { selected = nil }
-            modelContext.delete(i)
+            let c = visibleCards[index]
+            if selected?.persistentModelID == c.persistentModelID { selected = nil }
+            modelContext.delete(c)
         }
         try? modelContext.save()
         streakStore.recordUsage()
     }
 }
 
-private struct IssueAddSheet: View {
+private struct MainBoardNewCardSheet: View {
     var project: Project
+    var mainBoardColumns: [ProjectKanbanColumn]
+    var sortedMilestones: [ProjectMilestone]
     var modelContext: ModelContext
     var streakStore: StreakStore
-    var sortedMilestones: [ProjectMilestone]
-    var sortedSprints: [ProjectSprint]
-    var allCards: [ProjectKanbanCard]
     var onDismiss: () -> Void
 
     @State private var title = ""
-    @State private var detail = ""
-    @State private var kind = "task"
-    @State private var status = "open"
-    @State private var priority = "medium"
+    @State private var bodyText = ""
+    @State private var column: ProjectKanbanColumn?
     @State private var milestone: ProjectMilestone?
-    @State private var sprint: ProjectSprint?
-    @State private var card: ProjectKanbanCard?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("New task").font(.headline)
             TextField("Title", text: $title).textFieldStyle(.roundedBorder)
-            TextField("Kind", text: $kind).textFieldStyle(.roundedBorder)
-            TextField("Status", text: $status).textFieldStyle(.roundedBorder)
-            TextField("Priority", text: $priority).textFieldStyle(.roundedBorder)
+            TextEditor(text: $bodyText)
+                .frame(height: 100)
+                .padding(8)
+                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+            Picker("Column", selection: $column) {
+                ForEach(mainBoardColumns.sorted { $0.sortOrder < $1.sortOrder }) { col in
+                    Text(col.title).tag(Optional(col))
+                }
+            }
             Picker("Milestone", selection: $milestone) {
                 Text("None").tag(nil as ProjectMilestone?)
                 ForEach(sortedMilestones) { m in
                     Text(m.title.isEmpty ? "Milestone" : m.title).tag(m as ProjectMilestone?)
                 }
             }
-            Picker("Sprint", selection: $sprint) {
-                Text("None").tag(nil as ProjectSprint?)
-                ForEach(sortedSprints) { s in
-                    Text(s.title).tag(s as ProjectSprint?)
-                }
-            }
-            Picker("Card", selection: $card) {
-                Text("None").tag(nil as ProjectKanbanCard?)
-                ForEach(allCards) { c in
-                    Text(c.title.isEmpty ? "Untitled" : c.title).tag(c as ProjectKanbanCard?)
-                }
-            }
-            TextEditor(text: $detail).frame(height: 100).padding(8).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
             HStack {
                 Spacer()
                 Button("Cancel", action: onDismiss)
                 Button("Add") {
                     let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !t.isEmpty else { return }
-                    let issue = ProjectIssue(
-                        title: t,
-                        detail: detail,
-                        kind: kind,
-                        status: status,
-                        priority: priority,
-                        project: project,
-                        epic: nil,
-                        sprint: sprint,
-                        kanbanCard: card,
-                        milestone: milestone
-                    )
-                    modelContext.insert(issue)
-                    project.issues.append(issue)
+                    guard !t.isEmpty, let col = column ?? mainBoardColumns.sorted(by: { $0.sortOrder < $1.sortOrder }).first else { return }
+                    let nextOrder = (col.cards.map(\.sortOrder).max() ?? -1) + 1
+                    let card = ProjectKanbanCard(title: t, body: bodyText, sortOrder: nextOrder, column: col, milestone: milestone)
+                    modelContext.insert(card)
+                    col.cards.append(card)
                     try? modelContext.save()
                     streakStore.recordUsage()
                     onDismiss()
                 }
                 .keyboardShortcut(.defaultAction)
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || mainBoardColumns.isEmpty)
             }
         }
         .padding(20)
         .frame(minWidth: 400)
+        .onAppear {
+            if column == nil {
+                column = mainBoardColumns.sorted { $0.sortOrder < $1.sortOrder }.first
+            }
+        }
     }
 }
 
