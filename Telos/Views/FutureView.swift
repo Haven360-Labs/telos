@@ -1,6 +1,19 @@
 import SwiftUI
 import SwiftData
 
+/// Identifies a top-level future task for drag-reorder within the Future list.
+private struct FutureTopLevelDragPayload: Transferable, Codable, Equatable {
+    var persistentModelID: PersistentIdentifier
+
+    init(task: FutureTask) {
+        self.persistentModelID = task.persistentModelID
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .json)
+    }
+}
+
 /// Future tasks planning view. Add tasks and subtasks here; move them to Today when ready to work on them.
 struct FutureView: View {
     @Environment(\.modelContext) private var modelContext
@@ -38,7 +51,7 @@ struct FutureView: View {
             Text("Future tasks")
                 .font(.title2)
                 .fontWeight(.semibold)
-            Text("Add tasks and subtasks you plan to work on later. Move any task to Today when you're ready to start.")
+            Text("Add tasks and subtasks you plan to work on later. Drag tasks to reorder. Move any task to Today when you're ready to start.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -99,8 +112,62 @@ struct FutureView: View {
                     onDelete: { deleteTask(task) },
                     onAddSubtask: { addSubtask(to: task, title: $0) }
                 )
+                .draggable(FutureTopLevelDragPayload(task: task)) {
+                    futureTaskDragPreview(task)
+                }
+                .dropDestination(for: FutureTopLevelDragPayload.self) { items, _ in
+                    guard let payload = items.first else { return false }
+                    return reorderTopLevelFutureTasks(draggedID: payload.persistentModelID, before: task)
+                } isTargeted: { _ in }
             }
+            futureListEndDropZone
         }
+    }
+
+    private func futureTaskDragPreview(_ task: FutureTask) -> some View {
+        Text(task.title)
+            .font(.subheadline)
+            .fontWeight(.medium)
+            .lineLimit(2)
+            .padding(10)
+            .frame(minWidth: 120, maxWidth: 240)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            .shadow(radius: 4)
+    }
+
+    private var futureListEndDropZone: some View {
+        Color.clear
+            .frame(minHeight: 28)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .dropDestination(for: FutureTopLevelDragPayload.self) { items, _ in
+                guard let payload = items.first else { return false }
+                return reorderTopLevelFutureTasks(draggedID: payload.persistentModelID, before: nil)
+            } isTargeted: { _ in }
+            .help("Drop here to move to the end of the list")
+    }
+
+    /// Reorders top-level future tasks by rewriting contiguous `sortOrder` (0…n).
+    private func reorderTopLevelFutureTasks(draggedID: PersistentIdentifier, before target: FutureTask?) -> Bool {
+        guard let dragged = try? modelContext.model(for: draggedID) as? FutureTask,
+              dragged.parent == nil else { return false }
+        if let target, dragged.persistentModelID == target.persistentModelID { return true }
+
+        var ordered = topLevelFutureTasks.filter { $0.persistentModelID != dragged.persistentModelID }
+        let insertIndex: Int
+        if let target {
+            guard let idx = ordered.firstIndex(where: { $0.persistentModelID == target.persistentModelID }) else { return false }
+            insertIndex = idx
+        } else {
+            insertIndex = ordered.count
+        }
+        ordered.insert(dragged, at: insertIndex)
+        for (index, t) in ordered.enumerated() {
+            t.sortOrder = index
+        }
+        try? modelContext.save()
+        streakStore.recordUsage()
+        return true
     }
 
     private func addTask() {
