@@ -1102,6 +1102,28 @@ struct ProjectIssuesHubSection: View {
                     Text(c.title.isEmpty ? "Untitled card" : c.title).tag(c as ProjectKanbanCard?)
                 }
             }
+            Section {
+                Stepper("Reach: \(issue.riceReach)", value: $issue.riceReach, in: 0...10)
+                Stepper("Impact: \(issue.riceImpact)", value: $issue.riceImpact, in: 0...10)
+                Stepper("Confidence: \(issue.riceConfidence)", value: $issue.riceConfidence, in: 0...10)
+                Stepper("Effort: \(issue.riceEffort)", value: $issue.riceEffort, in: 0...10)
+                if let r = KanbanCardScoring.riceScore(issue: issue) {
+                    Text("RICE score: \(r, format: .number.precision(.fractionLength(2)))")
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("RICE (1–10, 0 = unset)")
+            }
+            Section {
+                TextField("Cost of delay", value: $issue.wsjfCostOfDelay, format: .number)
+                TextField("Job size", value: $issue.wsjfJobSize, format: .number)
+                if let w = KanbanCardScoring.wsjfScore(issue: issue) {
+                    Text("WSJF score: \(w, format: .number.precision(.fractionLength(3)))")
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("WSJF (0 = unset)")
+            }
             TextEditor(text: $issue.detail)
                 .frame(minHeight: 120)
         }

@@ -386,6 +386,14 @@ final class ProjectIssue {
     var status: String
     var priority: String
     var createdAt: Date
+    /// RICE inputs (1–10); 0 means unset in UI.
+    var riceReach: Int = 0
+    var riceImpact: Int = 0
+    var riceConfidence: Int = 0
+    var riceEffort: Int = 0
+    /// WSJF inputs; 0 means unset.
+    var wsjfCostOfDelay: Double = 0
+    var wsjfJobSize: Double = 0
     var project: Project?
     var epic: ProjectEpic?
     var sprint: ProjectSprint?
@@ -398,6 +406,12 @@ final class ProjectIssue {
         status: String = "open",
         priority: String = "medium",
         createdAt: Date = Date(),
+        riceReach: Int = 0,
+        riceImpact: Int = 0,
+        riceConfidence: Int = 0,
+        riceEffort: Int = 0,
+        wsjfCostOfDelay: Double = 0,
+        wsjfJobSize: Double = 0,
         project: Project? = nil,
         epic: ProjectEpic? = nil,
         sprint: ProjectSprint? = nil,
@@ -409,6 +423,12 @@ final class ProjectIssue {
         self.status = status
         self.priority = priority
         self.createdAt = createdAt
+        self.riceReach = riceReach
+        self.riceImpact = riceImpact
+        self.riceConfidence = riceConfidence
+        self.riceEffort = riceEffort
+        self.wsjfCostOfDelay = wsjfCostOfDelay
+        self.wsjfJobSize = wsjfJobSize
         self.project = project
         self.epic = epic
         self.sprint = sprint
@@ -512,6 +532,20 @@ enum KanbanCardScoring {
         let eps = 0.000_001
         guard card.wsjfJobSize > eps, card.wsjfCostOfDelay > 0 else { return nil }
         return card.wsjfCostOfDelay / max(card.wsjfJobSize, eps)
+    }
+
+    static func riceScore(issue: ProjectIssue) -> Double? {
+        guard issue.riceEffort > 0,
+              issue.riceReach > 0, issue.riceReach <= 10,
+              issue.riceImpact > 0, issue.riceImpact <= 10,
+              issue.riceConfidence > 0, issue.riceConfidence <= 10 else { return nil }
+        return Double(issue.riceReach * issue.riceImpact * issue.riceConfidence) / Double(issue.riceEffort)
+    }
+
+    static func wsjfScore(issue: ProjectIssue) -> Double? {
+        let eps = 0.000_001
+        guard issue.wsjfJobSize > eps, issue.wsjfCostOfDelay > 0 else { return nil }
+        return issue.wsjfCostOfDelay / max(issue.wsjfJobSize, eps)
     }
 }
 
