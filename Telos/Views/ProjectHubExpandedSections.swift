@@ -84,20 +84,6 @@ struct KanbanCardDetailForm: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-            Section("WSJF (0 = unset)") {
-                TextField("Cost of delay", value: $card.wsjfCostOfDelay, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Job size", value: $card.wsjfJobSize, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                if let w = KanbanCardScoring.wsjfScore(card: card) {
-                    Text("WSJF score: \(w, format: .number.precision(.fractionLength(3)))")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Set cost of delay and job size > 0")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
             Section("Checklist") {
                 ForEach(sortedChecklist) { item in
                     @Bindable var item = item

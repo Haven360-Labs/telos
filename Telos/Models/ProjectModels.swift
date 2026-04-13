@@ -106,9 +106,6 @@ final class ProjectKanbanCard {
     var riceImpact: Int = 0
     var riceConfidence: Int = 0
     var riceEffort: Int = 0
-    /// WSJF inputs; 0 means unset.
-    var wsjfCostOfDelay: Double = 0
-    var wsjfJobSize: Double = 0
 
     @Relationship(deleteRule: .cascade, inverse: \ProjectKanbanChecklistItem.card)
     var checklistItems: [ProjectKanbanChecklistItem] = []
@@ -412,9 +409,6 @@ final class ProjectIssue {
     var riceImpact: Int = 0
     var riceConfidence: Int = 0
     var riceEffort: Int = 0
-    /// WSJF inputs; 0 means unset.
-    var wsjfCostOfDelay: Double = 0
-    var wsjfJobSize: Double = 0
     var project: Project?
     var epic: ProjectEpic?
     var sprint: ProjectSprint?
@@ -432,8 +426,6 @@ final class ProjectIssue {
         riceImpact: Int = 0,
         riceConfidence: Int = 0,
         riceEffort: Int = 0,
-        wsjfCostOfDelay: Double = 0,
-        wsjfJobSize: Double = 0,
         project: Project? = nil,
         epic: ProjectEpic? = nil,
         sprint: ProjectSprint? = nil,
@@ -450,8 +442,6 @@ final class ProjectIssue {
         self.riceImpact = riceImpact
         self.riceConfidence = riceConfidence
         self.riceEffort = riceEffort
-        self.wsjfCostOfDelay = wsjfCostOfDelay
-        self.wsjfJobSize = wsjfJobSize
         self.project = project
         self.epic = epic
         self.sprint = sprint
@@ -549,13 +539,6 @@ enum KanbanCardScoring {
               card.riceImpact > 0, card.riceImpact <= 10,
               card.riceConfidence > 0, card.riceConfidence <= 10 else { return nil }
         return Double(card.riceReach * card.riceImpact * card.riceConfidence) / Double(card.riceEffort)
-    }
-
-    /// WSJF: Cost of delay / job size.
-    static func wsjfScore(card: ProjectKanbanCard) -> Double? {
-        let eps = 0.000_001
-        guard card.wsjfJobSize > eps, card.wsjfCostOfDelay > 0 else { return nil }
-        return card.wsjfCostOfDelay / max(card.wsjfJobSize, eps)
     }
 }
 
