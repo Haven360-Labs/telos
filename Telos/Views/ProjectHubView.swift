@@ -708,6 +708,17 @@ private struct KanbanBoardSection: View {
                         moveCard(card, to: other)
                     }
                 }
+                if let project, !sprintsToMove(from: column).isEmpty {
+                    Divider()
+                    Menu("Add to sprint") {
+                        ForEach(sprintsToMove(from: column)) { sprint in
+                            let suffix = sprint.isArchived ? " (archived)" : ""
+                            Button("\(sprint.title)\(suffix)") {
+                                moveCardToSprint(card, sprint: sprint)
+                            }
+                        }
+                    }
+                }
                 Divider()
                 Button("Edit card…") {
                     cardForInspector = card
@@ -773,6 +784,27 @@ private struct KanbanBoardSection: View {
 
     private func moveCard(_ card: ProjectKanbanCard, to column: ProjectKanbanColumn) {
         KanbanBoardDragSupport.drop(dragged: card, targetColumn: column, before: nil, modelContext: modelContext)
+        streakStore.recordUsage()
+    }
+
+    /// Sprints the card can move onto (excludes the sprint board it is already on).
+    private func sprintsToMove(from cardColumn: ProjectKanbanColumn) -> [ProjectSprint] {
+        guard let project else { return [] }
+        let onSprint = cardColumn.sprint
+        return project.sprints
+            .filter { onSprint?.persistentModelID != $0.persistentModelID }
+            .sorted { $0.startDate > $1.startDate }
+    }
+
+    /// Moves the card to the bottom of the first column on the sprint board (Backlog by default).
+    private func moveCardToSprint(_ card: ProjectKanbanCard, sprint: ProjectSprint) {
+        ProjectBoardDefaults.ensureDefaultColumns(for: sprint, modelContext: modelContext)
+        try? modelContext.save()
+        let cols = sprint.kanbanColumns.sorted { $0.sortOrder < $1.sortOrder }
+        guard let target = cols.first else { return }
+        withAnimation(.default) {
+            KanbanBoardDragSupport.drop(dragged: card, targetColumn: target, before: nil, modelContext: modelContext)
+        }
         streakStore.recordUsage()
     }
 
