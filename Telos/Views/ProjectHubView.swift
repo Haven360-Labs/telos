@@ -226,7 +226,7 @@ private struct ProjectOverviewSection: View {
     }
 
     private var cardCount: Int {
-        project.kanbanColumns.reduce(0) { $0 + $1.cards.count }
+        project.kanbanColumns.filter { $0.sprint == nil }.reduce(0) { $0 + $1.cards.count }
     }
 
     private func statTile(title: String, value: String, symbol: String) -> some View {
@@ -380,8 +380,9 @@ private struct ProjectNotesSection: View {
 
 // MARK: - Board
 
-private struct ProjectBoardSection: View {
-    var project: Project
+/// Shared kanban UI for the project main board or a sprint board.
+private struct KanbanBoardSection: View {
+    var columns: [ProjectKanbanColumn]
     var modelContext: ModelContext
     var streakStore: StreakStore
 
@@ -391,7 +392,7 @@ private struct ProjectBoardSection: View {
     @State private var addCardColumn: ProjectKanbanColumn?
 
     private var sortedColumns: [ProjectKanbanColumn] {
-        project.kanbanColumns.sorted { $0.sortOrder < $1.sortOrder }
+        columns.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {
@@ -526,6 +527,20 @@ private struct ProjectBoardSection: View {
     }
 }
 
+private struct ProjectBoardSection: View {
+    var project: Project
+    var modelContext: ModelContext
+    var streakStore: StreakStore
+
+    private var mainBoardColumns: [ProjectKanbanColumn] {
+        project.kanbanColumns.filter { $0.sprint == nil }.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    var body: some View {
+        KanbanBoardSection(columns: mainBoardColumns, modelContext: modelContext, streakStore: streakStore)
+    }
+}
+
 private struct EditKanbanCardSheet: View {
     @Bindable var card: ProjectKanbanCard
     var onDismiss: () -> Void
@@ -573,7 +588,7 @@ private struct ProjectSprintsSection: View {
     var body: some View {
         Group {
             if let sprint = selected {
-                SprintEditorView(sprint: sprint, modelContext: modelContext)
+                SprintEditorView(sprint: sprint, modelContext: modelContext, streakStore: streakStore)
             } else {
                 List(selection: $selected) {
                     ForEach(sortedSprints) { sprint in
@@ -614,6 +629,7 @@ private struct ProjectSprintsSection: View {
                         let sprint = ProjectSprint(title: t, startDate: start, endDate: end, notes: notes, project: project)
                         modelContext.insert(sprint)
                         project.sprints.append(sprint)
+                        ProjectBoardDefaults.ensureDefaultColumns(for: sprint, modelContext: modelContext)
                         try? modelContext.save()
                         streakStore.recordUsage()
                         showAdd = false
@@ -987,30 +1003,67 @@ private struct ProjectDocumentsSection: View {
 
 // MARK: - Detail editors (Bindable models)
 
+private enum SprintEditorTab: String, CaseIterable, Identifiable {
+    case details = "Details"
+    case board = "Board"
+    var id: String { rawValue }
+}
+
 private struct SprintEditorView: View {
     @Bindable var sprint: ProjectSprint
     var modelContext: ModelContext
+    var streakStore: StreakStore
+
+    @State private var tab: SprintEditorTab = .details
+
+    private var sprintBoardColumns: [ProjectKanbanColumn] {
+        sprint.kanbanColumns.sorted { $0.sortOrder < $1.sortOrder }
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                TextField("Title", text: $sprint.title)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .textFieldStyle(.roundedBorder)
-                DatePicker("Start", selection: $sprint.startDate, displayedComponents: .date)
-                DatePicker("End", selection: $sprint.endDate, displayedComponents: .date)
-                Text("Notes")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextEditor(text: $sprint.notes)
-                    .font(.body)
-                    .frame(minHeight: 120)
-                    .padding(8)
-                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+        VStack(spacing: 0) {
+            Picker("Sprint section", selection: $tab) {
+                ForEach(SprintEditorTab.allCases) { t in
+                    Text(t.rawValue).tag(t)
+                }
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            Group {
+                switch tab {
+                case .details:
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            TextField("Title", text: $sprint.title)
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .textFieldStyle(.roundedBorder)
+                            DatePicker("Start", selection: $sprint.startDate, displayedComponents: .date)
+                            DatePicker("End", selection: $sprint.endDate, displayedComponents: .date)
+                            Text("Notes")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextEditor(text: $sprint.notes)
+                                .font(.body)
+                                .frame(minHeight: 120)
+                                .padding(8)
+                                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                        .padding(24)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
+                case .board:
+                    KanbanBoardSection(columns: sprintBoardColumns, modelContext: modelContext, streakStore: streakStore)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onAppear {
+            ProjectBoardDefaults.ensureDefaultColumns(for: sprint, modelContext: modelContext)
+            try? modelContext.save()
         }
         .onDisappear { try? modelContext.save() }
     }

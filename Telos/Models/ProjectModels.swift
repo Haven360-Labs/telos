@@ -40,14 +40,17 @@ final class ProjectKanbanColumn {
     var title: String
     var sortOrder: Int
     var project: Project?
+    /// When set, this column belongs to the sprint’s board; when `nil`, it belongs to the project’s main board.
+    var sprint: ProjectSprint?
 
     @Relationship(deleteRule: .cascade, inverse: \ProjectKanbanCard.column)
     var cards: [ProjectKanbanCard] = []
 
-    init(title: String, sortOrder: Int = 0, project: Project? = nil) {
+    init(title: String, sortOrder: Int = 0, project: Project? = nil, sprint: ProjectSprint? = nil) {
         self.title = title
         self.sortOrder = sortOrder
         self.project = project
+        self.sprint = sprint
     }
 
     var sortedCards: [ProjectKanbanCard] {
@@ -79,6 +82,9 @@ final class ProjectSprint {
     var endDate: Date
     var notes: String
     var project: Project?
+
+    @Relationship(deleteRule: .cascade, inverse: \ProjectKanbanColumn.sprint)
+    var kanbanColumns: [ProjectKanbanColumn] = []
 
     @Relationship(deleteRule: .nullify, inverse: \ProjectRetrospective.sprint)
     var retrospectives: [ProjectRetrospective] = []
@@ -160,11 +166,21 @@ enum ProjectBoardDefaults {
     static let columnTitles = ["Backlog", "Doing", "Done"]
 
     static func ensureDefaultColumns(for project: Project, modelContext: ModelContext) {
-        guard project.kanbanColumns.isEmpty else { return }
+        let mainBoard = project.kanbanColumns.filter { $0.sprint == nil }
+        guard mainBoard.isEmpty else { return }
         for (index, title) in columnTitles.enumerated() {
-            let col = ProjectKanbanColumn(title: title, sortOrder: index, project: project)
+            let col = ProjectKanbanColumn(title: title, sortOrder: index, project: project, sprint: nil)
             modelContext.insert(col)
             project.kanbanColumns.append(col)
+        }
+    }
+
+    /// Creates default Backlog / Doing / Done columns for a sprint’s board (tied to the same project).
+    static func ensureDefaultColumns(for sprint: ProjectSprint, modelContext: ModelContext) {
+        guard sprint.kanbanColumns.isEmpty, let project = sprint.project else { return }
+        for (index, title) in columnTitles.enumerated() {
+            let col = ProjectKanbanColumn(title: title, sortOrder: index, project: project, sprint: sprint)
+            modelContext.insert(col)
         }
     }
 }
