@@ -1,20 +1,15 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Kanban card inspector (epic, RICE, WSJF, checklist)
+// MARK: - Kanban card inspector (RICE, WSJF, checklist)
 
 struct KanbanCardInspectorSheet: View {
     @Bindable var card: ProjectKanbanCard
-    var project: Project?
     var modelContext: ModelContext
     var streakStore: StreakStore
     var onDismiss: () -> Void
 
     @State private var newChecklistTitle = ""
-
-    private var sortedEpics: [ProjectEpic] {
-        (project?.epics ?? []).sorted { $0.sortOrder < $1.sortOrder }
-    }
 
     private var sortedChecklist: [ProjectKanbanChecklistItem] {
         card.checklistItems.sorted { $0.sortOrder < $1.sortOrder }
@@ -23,16 +18,6 @@ struct KanbanCardInspectorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                if project != nil {
-                    Section("Epic") {
-                        Picker("Epic", selection: $card.epic) {
-                            Text("None").tag(nil as ProjectEpic?)
-                            ForEach(sortedEpics) { epic in
-                                Text(epic.title).tag(epic as ProjectEpic?)
-                            }
-                        }
-                    }
-                }
                 Section("RICE (1–10, 0 = unset)") {
                     Stepper("Reach: \(card.riceReach)", value: $card.riceReach, in: 0...10)
                     Stepper("Impact: \(card.riceImpact)", value: $card.riceImpact, in: 0...10)
@@ -110,122 +95,6 @@ struct KanbanCardInspectorSheet: View {
     }
 }
 
-// MARK: - Epics & themes
-
-struct ProjectEpicsHubSection: View {
-    @Bindable var project: Project
-    var modelContext: ModelContext
-    var streakStore: StreakStore
-
-    @State private var newThemeName = ""
-    @State private var newEpicTitle = ""
-    @State private var epicThemePick: ProjectTheme?
-
-    private var sortedThemes: [ProjectTheme] {
-        project.themes.sorted { $0.sortOrder < $1.sortOrder }
-    }
-
-    private var orphanEpics: [ProjectEpic] {
-        project.epics.filter { $0.theme == nil }.sorted { $0.sortOrder < $1.sortOrder }
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                GroupBox("New theme") {
-                    HStack {
-                        TextField("Theme name", text: $newThemeName)
-                            .textFieldStyle(.roundedBorder)
-                        Button("Add") {
-                            let t = newThemeName.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !t.isEmpty else { return }
-                            let order = (project.themes.map(\.sortOrder).max() ?? -1) + 1
-                            let theme = ProjectTheme(title: t, sortOrder: order, project: project)
-                            modelContext.insert(theme)
-                            project.themes.append(theme)
-                            try? modelContext.save()
-                            streakStore.recordUsage()
-                            newThemeName = ""
-                        }
-                        .disabled(newThemeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                }
-                GroupBox("New epic") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Epic title", text: $newEpicTitle)
-                            .textFieldStyle(.roundedBorder)
-                        Picker("Theme", selection: $epicThemePick) {
-                            Text("None").tag(nil as ProjectTheme?)
-                            ForEach(sortedThemes) { th in
-                                Text(th.title).tag(th as ProjectTheme?)
-                            }
-                        }
-                        Button("Add epic") {
-                            let t = newEpicTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !t.isEmpty else { return }
-                            let order = (project.epics.map(\.sortOrder).max() ?? -1) + 1
-                            let epic = ProjectEpic(title: t, sortOrder: order, project: project, theme: epicThemePick)
-                            modelContext.insert(epic)
-                            project.epics.append(epic)
-                            try? modelContext.save()
-                            streakStore.recordUsage()
-                            newEpicTitle = ""
-                        }
-                        .disabled(newEpicTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                }
-                ForEach(sortedThemes) { theme in
-                    GroupBox(theme.title) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(theme.epics.sorted { $0.sortOrder < $1.sortOrder }) { epic in
-                                epicRow(epic)
-                            }
-                            if theme.epics.isEmpty {
-                                Text("No epics in this theme")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                    }
-                    .contextMenu {
-                        Button("Delete theme", role: .destructive) {
-                            modelContext.delete(theme)
-                            try? modelContext.save()
-                            streakStore.recordUsage()
-                        }
-                    }
-                }
-                if !orphanEpics.isEmpty {
-                    GroupBox("Epics without theme") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(orphanEpics) { epic in
-                                epicRow(epic)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-    }
-
-    private func epicRow(_ epic: ProjectEpic) -> some View {
-        HStack {
-            Text(epic.title)
-            Spacer()
-            Button(role: .destructive) {
-                modelContext.delete(epic)
-                try? modelContext.save()
-                streakStore.recordUsage()
-            } label: {
-                Image(systemName: "trash")
-            }
-            .buttonStyle(.plain)
-        }
-    }
-}
-
 // MARK: - Roadmap
 
 struct ProjectRoadmapHubSection: View {
@@ -240,14 +109,9 @@ struct ProjectRoadmapHubSection: View {
     @State private var addEnd: Date?
     @State private var addHasEnd = false
     @State private var addNotes = ""
-    @State private var addEpic: ProjectEpic?
 
     private var sortedItems: [ProjectRoadmapItem] {
         project.roadmapItems.sorted { $0.targetStart < $1.targetStart }
-    }
-
-    private var sortedEpics: [ProjectEpic] {
-        project.epics.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {
@@ -308,12 +172,6 @@ struct ProjectRoadmapHubSection: View {
             if addHasEnd {
                 DatePicker("Target end", selection: Binding(get: { addEnd ?? addStart }, set: { addEnd = $0 }), displayedComponents: .date)
             }
-            Picker("Epic", selection: $addEpic) {
-                Text("None").tag(nil as ProjectEpic?)
-                ForEach(sortedEpics) { e in
-                    Text(e.title).tag(e as ProjectEpic?)
-                }
-            }
             TextField("Notes", text: $addNotes, axis: .vertical).lineLimit(2...5).textFieldStyle(.roundedBorder)
             HStack {
                 Spacer()
@@ -331,7 +189,7 @@ struct ProjectRoadmapHubSection: View {
                         notes: addNotes,
                         sortOrder: next,
                         project: project,
-                        epic: addEpic
+                        epic: nil
                     )
                     modelContext.insert(item)
                     project.roadmapItems.append(item)
@@ -370,12 +228,6 @@ struct ProjectRoadmapHubSection: View {
                         displayedComponents: .date
                     )
                 }
-                Picker("Epic", selection: $item.epic) {
-                    Text("None").tag(nil as ProjectEpic?)
-                    ForEach(sortedEpics) { e in
-                        Text(e.title).tag(e as ProjectEpic?)
-                    }
-                }
                 TextEditor(text: $item.notes)
                     .frame(minHeight: 100)
                     .padding(8)
@@ -397,142 +249,6 @@ struct ProjectRoadmapHubSection: View {
     }
 }
 
-// MARK: - Decisions
-
-struct ProjectDecisionsHubSection: View {
-    @Bindable var project: Project
-    var modelContext: ModelContext
-    var streakStore: StreakStore
-
-    @State private var selected: ProjectDecision?
-    @State private var showAdd = false
-    @State private var addTitle = ""
-    @State private var addContext = ""
-    @State private var addDecision = ""
-    @State private var addRationale = ""
-
-    private var sortedDecisions: [ProjectDecision] {
-        project.decisions.sorted { $0.decidedAt > $1.decidedAt }
-    }
-
-    var body: some View {
-        Group {
-            if let d = selected {
-                decisionDetail(d)
-            } else {
-                List(selection: $selected) {
-                    ForEach(sortedDecisions) { row in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(row.title).font(.headline)
-                            Text(row.decidedAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .tag(row)
-                    }
-                    .onDelete(perform: deleteAt)
-                }
-                .listStyle(.inset)
-            }
-        }
-        .sheet(isPresented: $showAdd) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Decision").font(.headline)
-                TextField("Title", text: $addTitle).textFieldStyle(.roundedBorder)
-                TextField("Context", text: $addContext, axis: .vertical).lineLimit(2...4).textFieldStyle(.roundedBorder)
-                TextField("Decision", text: $addDecision, axis: .vertical).lineLimit(2...4).textFieldStyle(.roundedBorder)
-                TextField("Rationale", text: $addRationale, axis: .vertical).lineLimit(2...6).textFieldStyle(.roundedBorder)
-                HStack {
-                    Spacer()
-                    Button("Cancel") { showAdd = false }
-                    Button("Save") {
-                        let t = addTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !t.isEmpty else { return }
-                        let dec = ProjectDecision(
-                            title: t,
-                            context: addContext,
-                            decision: addDecision,
-                            rationale: addRationale,
-                            project: project
-                        )
-                        modelContext.insert(dec)
-                        project.decisions.append(dec)
-                        try? modelContext.save()
-                        streakStore.recordUsage()
-                        showAdd = false
-                        addTitle = ""
-                        addContext = ""
-                        addDecision = ""
-                        addRationale = ""
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
-            }
-            .padding(20)
-            .frame(minWidth: 380)
-        }
-        .toolbar {
-            if selected == nil {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Add decision") { showAdd = true }
-                }
-            } else {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        try? modelContext.save()
-                        selected = nil
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Delete", role: .destructive) {
-                        if let d = selected {
-                            modelContext.delete(d)
-                            selected = nil
-                            try? modelContext.save()
-                            streakStore.recordUsage()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func decisionDetail(_ d: ProjectDecision) -> some View {
-        @Bindable var d = d
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                TextField("Title", text: $d.title).font(.title2).textFieldStyle(.roundedBorder)
-                DatePicker("Decided", selection: $d.decidedAt, displayedComponents: [.date, .hourAndMinute])
-                labeledField("Context", text: $d.context)
-                labeledField("Decision", text: $d.decision)
-                labeledField("Rationale", text: $d.rationale)
-            }
-            .padding(24)
-        }
-        .onDisappear { try? modelContext.save() }
-    }
-
-    private func labeledField(_ title: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            TextEditor(text: text)
-                .frame(minHeight: 72)
-                .padding(8)
-                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-        }
-    }
-
-    private func deleteAt(_ offsets: IndexSet) {
-        for index in offsets {
-            let d = sortedDecisions[index]
-            if selected?.persistentModelID == d.persistentModelID { selected = nil }
-            modelContext.delete(d)
-        }
-        try? modelContext.save()
-        streakStore.recordUsage()
-    }
-}
-
 // MARK: - Milestones
 
 struct ProjectMilestonesHubSection: View {
@@ -544,14 +260,9 @@ struct ProjectMilestonesHubSection: View {
     @State private var showAdd = false
     @State private var addTitle = ""
     @State private var addDate = Date()
-    @State private var addEpic: ProjectEpic?
 
     private var sortedMilestones: [ProjectMilestone] {
         project.milestones.sorted { $0.targetDate < $1.targetDate }
-    }
-
-    private var sortedEpics: [ProjectEpic] {
-        project.epics.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {
@@ -585,12 +296,6 @@ struct ProjectMilestonesHubSection: View {
                 Text("Milestone").font(.headline)
                 TextField("Title", text: $addTitle).textFieldStyle(.roundedBorder)
                 DatePicker("Target date", selection: $addDate, displayedComponents: .date)
-                Picker("Epic", selection: $addEpic) {
-                    Text("None").tag(nil as ProjectEpic?)
-                    ForEach(sortedEpics) { e in
-                        Text(e.title).tag(e as ProjectEpic?)
-                    }
-                }
                 HStack {
                     Spacer()
                     Button("Cancel") { showAdd = false }
@@ -603,7 +308,7 @@ struct ProjectMilestonesHubSection: View {
                             targetDate: Calendar.current.startOfDay(for: addDate),
                             sortOrder: next,
                             project: project,
-                            epic: addEpic
+                            epic: nil
                         )
                         modelContext.insert(m)
                         project.milestones.append(m)
@@ -650,12 +355,6 @@ struct ProjectMilestonesHubSection: View {
             TextField("Title", text: $m.title)
             DatePicker("Target date", selection: $m.targetDate, displayedComponents: .date)
             Toggle("Completed", isOn: $m.isCompleted)
-            Picker("Epic", selection: $m.epic) {
-                Text("None").tag(nil as ProjectEpic?)
-                ForEach(sortedEpics) { e in
-                    Text(e.title).tag(e as ProjectEpic?)
-                }
-            }
         }
         .formStyle(.grouped)
         .padding()
@@ -815,9 +514,6 @@ struct ProjectReleasesHubSection: View {
                         newChecklistTitle = ""
                     }
                 }
-                Text("Link changelog entries from the Changelog section for this version.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
             .padding(24)
         }
@@ -829,150 +525,6 @@ struct ProjectReleasesHubSection: View {
             let r = sortedReleases[index]
             if selected?.persistentModelID == r.persistentModelID { selected = nil }
             modelContext.delete(r)
-        }
-        try? modelContext.save()
-        streakStore.recordUsage()
-    }
-}
-
-// MARK: - Changelog
-
-struct ProjectChangelogHubSection: View {
-    @Bindable var project: Project
-    var modelContext: ModelContext
-    var streakStore: StreakStore
-
-    @State private var selected: ProjectChangelogEntry?
-    @State private var showAdd = false
-    @State private var addVersion = ""
-    @State private var addDate = Date()
-    @State private var addBody = ""
-    @State private var addRelease: ProjectRelease?
-
-    private var sortedEntries: [ProjectChangelogEntry] {
-        project.changelogEntries.sorted { $0.date > $1.date }
-    }
-
-    private var sortedReleases: [ProjectRelease] {
-        project.releases.sorted { $0.version < $1.version }
-    }
-
-    var body: some View {
-        Group {
-            if let entry = selected {
-                changelogDetail(entry)
-            } else {
-                List(selection: $selected) {
-                    ForEach(sortedEntries) { row in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(row.version).font(.headline)
-                            Text(row.date.formatted(date: .abbreviated, time: .omitted))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .tag(row)
-                    }
-                    .onDelete(perform: deleteAt)
-                }
-                .listStyle(.inset)
-            }
-        }
-        .sheet(isPresented: $showAdd) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Changelog entry").font(.headline)
-                TextField("Version", text: $addVersion).textFieldStyle(.roundedBorder)
-                DatePicker("Date", selection: $addDate, displayedComponents: .date)
-                Picker("Release (optional)", selection: $addRelease) {
-                    Text("None").tag(nil as ProjectRelease?)
-                    ForEach(sortedReleases) { r in
-                        Text(r.version).tag(r as ProjectRelease?)
-                    }
-                }
-                TextEditor(text: $addBody)
-                    .frame(height: 140)
-                    .padding(8)
-                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-                HStack {
-                    Spacer()
-                    Button("Cancel") { showAdd = false }
-                    Button("Add") {
-                        let v = addVersion.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !v.isEmpty, !addBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                        let entry = ProjectChangelogEntry(
-                            version: v,
-                            date: Calendar.current.startOfDay(for: addDate),
-                            body: addBody,
-                            project: project,
-                            release: addRelease
-                        )
-                        modelContext.insert(entry)
-                        project.changelogEntries.append(entry)
-                        try? modelContext.save()
-                        streakStore.recordUsage()
-                        showAdd = false
-                        addVersion = ""
-                        addBody = ""
-                        addRelease = nil
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
-            }
-            .padding(20)
-            .frame(minWidth: 400)
-        }
-        .toolbar {
-            if selected == nil {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Add entry") { showAdd = true }
-                }
-            } else {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        try? modelContext.save()
-                        selected = nil
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Delete", role: .destructive) {
-                        if let e = selected {
-                            modelContext.delete(e)
-                            selected = nil
-                            try? modelContext.save()
-                            streakStore.recordUsage()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func changelogDetail(_ entry: ProjectChangelogEntry) -> some View {
-        @Bindable var entry = entry
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                TextField("Version", text: $entry.version).font(.title2).textFieldStyle(.roundedBorder)
-                DatePicker("Date", selection: $entry.date, displayedComponents: .date)
-                Picker("Release", selection: $entry.release) {
-                    Text("None").tag(nil as ProjectRelease?)
-                    ForEach(sortedReleases) { r in
-                        Text(r.version).tag(r as ProjectRelease?)
-                    }
-                }
-                TextEditor(text: $entry.body)
-                    .frame(minHeight: 200)
-                    .padding(8)
-                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-            }
-            .padding(24)
-        }
-        .onDisappear { try? modelContext.save() }
-    }
-
-    private func deleteAt(_ offsets: IndexSet) {
-        for index in offsets {
-            let e = sortedEntries[index]
-            if selected?.persistentModelID == e.persistentModelID { selected = nil }
-            modelContext.delete(e)
         }
         try? modelContext.save()
         streakStore.recordUsage()
@@ -991,10 +543,6 @@ struct ProjectIssuesHubSection: View {
     @State private var showAdd = false
 
     private let statuses = ["all", "open", "in progress", "done", "closed"]
-
-    private var sortedEpics: [ProjectEpic] {
-        project.epics.sorted { $0.sortOrder < $1.sortOrder }
-    }
 
     private var sortedSprints: [ProjectSprint] {
         project.sprints.sorted { $0.startDate > $1.startDate }
@@ -1045,7 +593,6 @@ struct ProjectIssuesHubSection: View {
                 project: project,
                 modelContext: modelContext,
                 streakStore: streakStore,
-                sortedEpics: sortedEpics,
                 sortedSprints: sortedSprints,
                 allCards: allCards,
                 onDismiss: { showAdd = false }
@@ -1084,12 +631,6 @@ struct ProjectIssuesHubSection: View {
             TextField("Kind", text: $issue.kind)
             TextField("Status", text: $issue.status)
             TextField("Priority", text: $issue.priority)
-            Picker("Epic", selection: $issue.epic) {
-                Text("None").tag(nil as ProjectEpic?)
-                ForEach(sortedEpics) { e in
-                    Text(e.title).tag(e as ProjectEpic?)
-                }
-            }
             Picker("Sprint", selection: $issue.sprint) {
                 Text("None").tag(nil as ProjectSprint?)
                 ForEach(sortedSprints) { s in
@@ -1147,7 +688,6 @@ private struct IssueAddSheet: View {
     var project: Project
     var modelContext: ModelContext
     var streakStore: StreakStore
-    var sortedEpics: [ProjectEpic]
     var sortedSprints: [ProjectSprint]
     var allCards: [ProjectKanbanCard]
     var onDismiss: () -> Void
@@ -1157,7 +697,6 @@ private struct IssueAddSheet: View {
     @State private var kind = "task"
     @State private var status = "open"
     @State private var priority = "medium"
-    @State private var epic: ProjectEpic?
     @State private var sprint: ProjectSprint?
     @State private var card: ProjectKanbanCard?
 
@@ -1168,12 +707,6 @@ private struct IssueAddSheet: View {
             TextField("Kind", text: $kind).textFieldStyle(.roundedBorder)
             TextField("Status", text: $status).textFieldStyle(.roundedBorder)
             TextField("Priority", text: $priority).textFieldStyle(.roundedBorder)
-            Picker("Epic", selection: $epic) {
-                Text("None").tag(nil as ProjectEpic?)
-                ForEach(sortedEpics) { e in
-                    Text(e.title).tag(e as ProjectEpic?)
-                }
-            }
             Picker("Sprint", selection: $sprint) {
                 Text("None").tag(nil as ProjectSprint?)
                 ForEach(sortedSprints) { s in
@@ -1200,7 +733,7 @@ private struct IssueAddSheet: View {
                         status: status,
                         priority: priority,
                         project: project,
-                        epic: epic,
+                        epic: nil,
                         sprint: sprint,
                         kanbanCard: card
                     )
@@ -1215,119 +748,6 @@ private struct IssueAddSheet: View {
         }
         .padding(20)
         .frame(minWidth: 400)
-    }
-}
-
-// MARK: - Risks
-
-struct ProjectRisksHubSection: View {
-    @Bindable var project: Project
-    var modelContext: ModelContext
-    var streakStore: StreakStore
-
-    @State private var selected: ProjectRisk?
-    @State private var showAdd = false
-    @State private var addTitle = ""
-
-    private var sortedRisks: [ProjectRisk] {
-        project.risks.sorted { $0.title < $1.title }
-    }
-
-    var body: some View {
-        Group {
-            if let r = selected {
-                riskDetail(r)
-            } else {
-                List(selection: $selected) {
-                    ForEach(sortedRisks) { row in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(row.title).font(.headline)
-                            Text("L\(row.likelihood) · I\(row.impact) · \(row.status)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .tag(row)
-                    }
-                    .onDelete(perform: deleteAt)
-                }
-                .listStyle(.inset)
-            }
-        }
-        .sheet(isPresented: $showAdd) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Risk").font(.headline)
-                TextField("Title", text: $addTitle).textFieldStyle(.roundedBorder)
-                HStack {
-                    Spacer()
-                    Button("Cancel") { showAdd = false }
-                    Button("Add") {
-                        let t = addTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !t.isEmpty else { return }
-                        let risk = ProjectRisk(title: t, project: project)
-                        modelContext.insert(risk)
-                        project.risks.append(risk)
-                        try? modelContext.save()
-                        streakStore.recordUsage()
-                        showAdd = false
-                        addTitle = ""
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
-            }
-            .padding(20)
-            .frame(minWidth: 300)
-        }
-        .toolbar {
-            if selected == nil {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Add risk") { showAdd = true }
-                }
-            } else {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        try? modelContext.save()
-                        selected = nil
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Delete", role: .destructive) {
-                        if let r = selected {
-                            modelContext.delete(r)
-                            selected = nil
-                            try? modelContext.save()
-                            streakStore.recordUsage()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func riskDetail(_ r: ProjectRisk) -> some View {
-        @Bindable var r = r
-        return Form {
-            TextField("Title", text: $r.title)
-            Stepper("Likelihood: \(r.likelihood)", value: $r.likelihood, in: 1...5)
-            Stepper("Impact: \(r.impact)", value: $r.impact, in: 1...5)
-            TextField("Status", text: $r.status)
-            TextEditor(text: $r.detail)
-                .frame(minHeight: 80)
-            TextEditor(text: $r.mitigation)
-                .frame(minHeight: 80)
-        }
-        .formStyle(.grouped)
-        .padding()
-        .onDisappear { try? modelContext.save() }
-    }
-
-    private func deleteAt(_ offsets: IndexSet) {
-        for index in offsets {
-            let r = sortedRisks[index]
-            if selected?.persistentModelID == r.persistentModelID { selected = nil }
-            modelContext.delete(r)
-        }
-        try? modelContext.save()
-        streakStore.recordUsage()
     }
 }
 

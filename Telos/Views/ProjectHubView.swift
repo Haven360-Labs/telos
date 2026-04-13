@@ -4,9 +4,7 @@ import AppKit
 
 private enum ProjectDetailSection: String, CaseIterable, Identifiable {
     case overview
-    case epics
     case roadmap
-    case decisions
     case notes
     case board
     case sprints
@@ -14,9 +12,7 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
     case timeline
     case milestones
     case releases
-    case changelog
     case issues
-    case risks
     case testing
     case documents
 
@@ -25,9 +21,7 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .overview: return "Overview"
-        case .epics: return "Themes & epics"
         case .roadmap: return "Roadmap"
-        case .decisions: return "Decisions"
         case .notes: return "Notes"
         case .board: return "Board"
         case .sprints: return "Sprints"
@@ -35,9 +29,7 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         case .timeline: return "Timeline"
         case .milestones: return "Milestones"
         case .releases: return "Releases"
-        case .changelog: return "Changelog"
         case .issues: return "Issues"
-        case .risks: return "Risks"
         case .testing: return "Testing"
         case .documents: return "Documents"
         }
@@ -46,9 +38,7 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .overview: return "rectangle.grid.1x2"
-        case .epics: return "square.stack.3d.up"
         case .roadmap: return "map"
-        case .decisions: return "checkmark.seal"
         case .notes: return "note.text"
         case .board: return "rectangle.split.3x1"
         case .sprints: return "calendar.badge.clock"
@@ -56,9 +46,7 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         case .timeline: return "timeline.selection"
         case .milestones: return "flag.checkered"
         case .releases: return "shippingbox"
-        case .changelog: return "list.bullet.rectangle"
         case .issues: return "ladybug"
-        case .risks: return "exclamationmark.triangle"
         case .testing: return "checklist"
         case .documents: return "doc.richtext"
         }
@@ -159,7 +147,7 @@ struct ProjectHubView: View {
             }
         } message: {
             if let project = projectPendingDeletion {
-                Text("“\(project.name)” and everything inside it (notes, board, sprints, retrospectives, timeline, roadmap, epics, issues, releases, and other project data) will be permanently removed.")
+                Text("“\(project.name)” and everything inside it (notes, board, sprints, retrospectives, timeline, roadmap, issues, releases, and other project data) will be permanently removed.")
             }
         }
         .sheet(isPresented: $showNewProjectSheet) {
@@ -246,12 +234,8 @@ struct ProjectHubView: View {
                 switch section {
                 case .overview:
                     ProjectOverviewSection(project: project, modelContext: modelContext, streakStore: streakStore)
-                case .epics:
-                    ProjectEpicsHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .roadmap:
                     ProjectRoadmapHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
-                case .decisions:
-                    ProjectDecisionsHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .notes:
                     ProjectNotesSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .board:
@@ -266,12 +250,8 @@ struct ProjectHubView: View {
                     ProjectMilestonesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .releases:
                     ProjectReleasesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
-                case .changelog:
-                    ProjectChangelogHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .issues:
                     ProjectIssuesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
-                case .risks:
-                    ProjectRisksHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .testing:
                     ProjectTestingHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .documents:
@@ -395,7 +375,6 @@ private struct ProjectOverviewSection: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     statTile(title: "Notes", value: "\(project.notes.count)", symbol: "note.text")
                     statTile(title: "Board cards", value: "\(cardCount)", symbol: "rectangle.split.3x1")
-                    statTile(title: "Epics", value: "\(project.epics.count)", symbol: "square.stack.3d.up")
                     statTile(title: "Milestones", value: "\(project.milestones.count)", symbol: "flag.checkered")
                     statTile(title: "Releases", value: "\(project.releases.count)", symbol: "shippingbox")
                     statTile(title: "Open issues", value: "\(openIssueCount)", symbol: "ladybug")
@@ -570,8 +549,6 @@ private struct ProjectNotesSection: View {
 /// Shared kanban UI for the project main board or a sprint board.
 private struct KanbanBoardSection: View {
     var columns: [ProjectKanbanColumn]
-    /// Used for epic pickers and the card inspector; nil hides epic/scoring UI in the inspector.
-    var project: Project?
     var modelContext: ModelContext
     var streakStore: StreakStore
 
@@ -605,7 +582,6 @@ private struct KanbanBoardSection: View {
         .sheet(item: $cardForInspector) { card in
             KanbanCardInspectorSheet(
                 card: card,
-                project: project,
                 modelContext: modelContext,
                 streakStore: streakStore,
                 onDismiss: { cardForInspector = nil }
@@ -806,7 +782,7 @@ private struct ProjectBoardSection: View {
     }
 
     var body: some View {
-        KanbanBoardSection(columns: mainBoardColumns, project: project, modelContext: modelContext, streakStore: streakStore)
+        KanbanBoardSection(columns: mainBoardColumns, modelContext: modelContext, streakStore: streakStore)
     }
 }
 
@@ -1506,7 +1482,7 @@ private struct SprintEditorView: View {
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
                 case .board:
-                    KanbanBoardSection(columns: sprintBoardColumns, project: sprint.project, modelContext: modelContext, streakStore: streakStore)
+                    KanbanBoardSection(columns: sprintBoardColumns, modelContext: modelContext, streakStore: streakStore)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
