@@ -103,27 +103,6 @@ struct ProjectHubView: View {
                         section = .overview
                     }
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    if let project = selectedProject {
-                        Menu {
-                            if project.isArchived {
-                                Button("Unarchive project") {
-                                    setProjectArchived(project, archived: false)
-                                }
-                            } else {
-                                Button("Archive project") {
-                                    setProjectArchived(project, archived: true)
-                                }
-                            }
-                            Divider()
-                            Button("Delete project…", role: .destructive) {
-                                projectPendingDeletion = project
-                            }
-                        } label: {
-                            Label("Project options", systemImage: "ellipsis.circle")
-                        }
-                    }
-                }
             }
         }
         .confirmationDialog(
@@ -273,7 +252,13 @@ struct ProjectHubView: View {
                 case .documents:
                     ProjectDocumentsSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .settings:
-                    ProjectSettingsSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                    ProjectSettingsSection(
+                        project: project,
+                        modelContext: modelContext,
+                        streakStore: streakStore,
+                        onSetArchived: { archived in setProjectArchived(project, archived: archived) },
+                        onRequestDelete: { projectPendingDeletion = project }
+                    )
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -443,6 +428,8 @@ private struct ProjectSettingsSection: View {
     @Bindable var project: Project
     var modelContext: ModelContext
     var streakStore: StreakStore
+    var onSetArchived: (Bool) -> Void
+    var onRequestDelete: () -> Void
 
     var body: some View {
         Form {
@@ -454,10 +441,29 @@ private struct ProjectSettingsSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section {
-                Text("Archive or delete this project from the toolbar menu (⋯).")
+            Section("Archive") {
+                if project.isArchived {
+                    Text("Archived projects are hidden from the main list unless you choose “Show archived” on the projects list.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Unarchive project") {
+                        onSetArchived(false)
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    Button("Archive project") {
+                        onSetArchived(true)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            Section("Delete") {
+                Text("Permanently removes this project and all of its notes, board & tasks, sprints, retrospectives, roadmap, releases, and other data.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button("Delete project…", role: .destructive) {
+                    onRequestDelete()
+                }
             }
         }
         .formStyle(.grouped)
