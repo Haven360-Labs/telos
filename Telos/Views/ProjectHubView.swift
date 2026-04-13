@@ -644,15 +644,28 @@ private struct KanbanBoardSection: View {
     private func boardCardRow(_ card: ProjectKanbanCard, column: ProjectKanbanColumn) -> some View {
         let isDropBefore = dropTargetCardID == card.persistentModelID
         return VStack(alignment: .leading, spacing: 6) {
-            Text(card.title.isEmpty ? "Untitled" : card.title)
-                .font(.subheadline)
-                .fontWeight(.medium)
-            if !card.body.isEmpty {
-                Text(card.body)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
+            Button {
+                cardForInspector = card
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(card.title.isEmpty ? "Untitled" : card.title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .multilineTextAlignment(.leading)
+                        .foregroundStyle(.primary)
+                    if !card.body.isEmpty {
+                        Text(card.body)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help("Show task details")
             Menu {
                 ForEach(sortedColumns.filter { $0.persistentModelID != column.persistentModelID }) { other in
                     Button("Move to \(other.title)") {
@@ -698,7 +711,7 @@ private struct KanbanBoardSection: View {
                 dropTargetCardID = nil
             }
         }
-        .help("Drag to reorder within the column or move to another column")
+        .help("Click the task to open details; drag to reorder or move between columns")
     }
 
     private func cardDragPreview(_ card: ProjectKanbanCard) -> some View {
