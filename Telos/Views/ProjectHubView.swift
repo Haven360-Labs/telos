@@ -781,16 +781,35 @@ private enum ProjectWorkHubTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// Single hub for the main kanban board and the task list (same `ProjectKanbanCard` data).
+/// Single hub for the main kanban board or a sprint board, and the matching task list (`ProjectKanbanCard`).
 private struct ProjectBoardAndTasksSection: View {
     var project: Project
     var modelContext: ModelContext
     var streakStore: StreakStore
 
     @State private var tab: ProjectWorkHubTab = .board
+    /// `nil` = project main board; otherwise that sprint’s board.
+    @State private var workSprint: ProjectSprint?
+
+    private var sprintsForScope: [ProjectSprint] {
+        project.sprints.sorted { $0.startDate > $1.startDate }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
+            Picker("Board", selection: $workSprint) {
+                Text("Main board").tag(nil as ProjectSprint?)
+                ForEach(sprintsForScope) { sprint in
+                    let suffix = sprint.isArchived ? " (archived)" : ""
+                    Text("\(sprint.title)\(suffix)").tag(sprint as ProjectSprint?)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+
             Picker("Board or tasks", selection: $tab) {
                 ForEach(ProjectWorkHubTab.allCases) { t in
                     Text(t.rawValue).tag(t)
@@ -799,17 +818,27 @@ private struct ProjectBoardAndTasksSection: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .padding(.horizontal, 16)
-            .padding(.top, 12)
             .padding(.bottom, 8)
 
             Group {
                 switch tab {
                 case .board:
-                    ProjectBoardSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                    ProjectBoardSection(
+                        project: project,
+                        sprint: workSprint,
+                        modelContext: modelContext,
+                        streakStore: streakStore
+                    )
                 case .tasks:
-                    ProjectMainBoardTaskListSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                    ProjectBoardTaskListSection(
+                        project: project,
+                        sprint: workSprint,
+                        modelContext: modelContext,
+                        streakStore: streakStore
+                    )
                 }
             }
+            .id(workSprint.map(\.persistentModelID))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -817,15 +846,25 @@ private struct ProjectBoardAndTasksSection: View {
 
 private struct ProjectBoardSection: View {
     var project: Project
+    var sprint: ProjectSprint?
     var modelContext: ModelContext
     var streakStore: StreakStore
 
-    private var mainBoardColumns: [ProjectKanbanColumn] {
-        project.kanbanColumns.filter { $0.sprint == nil }.sorted { $0.sortOrder < $1.sortOrder }
+    private var boardColumns: [ProjectKanbanColumn] {
+        if let sprint {
+            return sprint.kanbanColumns.sorted { $0.sortOrder < $1.sortOrder }
+        }
+        return project.kanbanColumns.filter { $0.sprint == nil }.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {
-        KanbanBoardSection(columns: mainBoardColumns, project: project, modelContext: modelContext, streakStore: streakStore)
+        KanbanBoardSection(columns: boardColumns, project: project, modelContext: modelContext, streakStore: streakStore)
+            .onAppear {
+                if let sprint {
+                    ProjectBoardDefaults.ensureDefaultColumns(for: sprint, modelContext: modelContext)
+                    try? modelContext.save()
+                }
+            }
     }
 }
 

@@ -620,11 +620,13 @@ struct ProjectReleasesHubSection: View {
     }
 }
 
-// MARK: - Tasks (main board cards — same data as Board)
+// MARK: - Tasks (board cards — same data as Board tab)
 
-/// Lists and edits **`ProjectKanbanCard`** on the project’s main board (not sprint boards).
-struct ProjectMainBoardTaskListSection: View {
+/// Lists and edits **`ProjectKanbanCard`** for the main board (`sprint == nil`) or a chosen sprint board.
+struct ProjectBoardTaskListSection: View {
     @Bindable var project: Project
+    /// When set, list/edit cards on this sprint’s board; when `nil`, the project main board.
+    var sprint: ProjectSprint?
     var modelContext: ModelContext
     var streakStore: StreakStore
 
@@ -632,8 +634,11 @@ struct ProjectMainBoardTaskListSection: View {
     @State private var filterColumn: ProjectKanbanColumn?
     @State private var showAdd = false
 
-    private var mainBoardColumns: [ProjectKanbanColumn] {
-        project.kanbanColumns.filter { $0.sprint == nil }.sorted { $0.sortOrder < $1.sortOrder }
+    private var boardColumns: [ProjectKanbanColumn] {
+        if let sprint {
+            return sprint.kanbanColumns.sorted { $0.sortOrder < $1.sortOrder }
+        }
+        return project.kanbanColumns.filter { $0.sprint == nil }.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     private var sortedMilestones: [ProjectMilestone] {
@@ -641,7 +646,7 @@ struct ProjectMainBoardTaskListSection: View {
     }
 
     private var visibleCards: [ProjectKanbanCard] {
-        mainBoardColumns.flatMap { col in
+        boardColumns.flatMap { col in
             col.sortedCards.filter { card in
                 filterColumn == nil || card.column?.persistentModelID == filterColumn?.persistentModelID
             }
@@ -654,7 +659,7 @@ struct ProjectMainBoardTaskListSection: View {
                 KanbanCardDetailForm(
                     card: card,
                     project: project,
-                    columnsForMove: mainBoardColumns,
+                    columnsForMove: boardColumns,
                     modelContext: modelContext,
                     streakStore: streakStore
                 )
@@ -664,7 +669,7 @@ struct ProjectMainBoardTaskListSection: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Picker("Column filter", selection: $filterColumn) {
                         Text("All columns").tag(nil as ProjectKanbanColumn?)
-                        ForEach(mainBoardColumns) { col in
+                        ForEach(boardColumns) { col in
                             Text(col.title).tag(col as ProjectKanbanColumn?)
                         }
                     }
@@ -696,14 +701,19 @@ struct ProjectMainBoardTaskListSection: View {
             }
         }
         .sheet(isPresented: $showAdd) {
-            MainBoardNewCardSheet(
-                project: project,
-                mainBoardColumns: mainBoardColumns,
+            WorkBoardNewCardSheet(
+                columns: boardColumns,
                 sortedMilestones: sortedMilestones,
                 modelContext: modelContext,
                 streakStore: streakStore,
                 onDismiss: { showAdd = false }
             )
+        }
+        .onAppear {
+            if let sprint {
+                ProjectBoardDefaults.ensureDefaultColumns(for: sprint, modelContext: modelContext)
+                try? modelContext.save()
+            }
         }
         .toolbar {
             if selected == nil {
@@ -742,9 +752,8 @@ struct ProjectMainBoardTaskListSection: View {
     }
 }
 
-private struct MainBoardNewCardSheet: View {
-    var project: Project
-    var mainBoardColumns: [ProjectKanbanColumn]
+private struct WorkBoardNewCardSheet: View {
+    var columns: [ProjectKanbanColumn]
     var sortedMilestones: [ProjectMilestone]
     var modelContext: ModelContext
     var streakStore: StreakStore
@@ -755,6 +764,10 @@ private struct MainBoardNewCardSheet: View {
     @State private var column: ProjectKanbanColumn?
     @State private var milestone: ProjectMilestone?
 
+    private var sortedColumns: [ProjectKanbanColumn] {
+        columns.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("New task").font(.headline)
@@ -764,7 +777,7 @@ private struct MainBoardNewCardSheet: View {
                 .padding(8)
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
             Picker("Column", selection: $column) {
-                ForEach(mainBoardColumns.sorted { $0.sortOrder < $1.sortOrder }) { col in
+                ForEach(sortedColumns) { col in
                     Text(col.title).tag(Optional(col))
                 }
             }
@@ -779,7 +792,7 @@ private struct MainBoardNewCardSheet: View {
                 Button("Cancel", action: onDismiss)
                 Button("Add") {
                     let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !t.isEmpty, let col = column ?? mainBoardColumns.sorted(by: { $0.sortOrder < $1.sortOrder }).first else { return }
+                    guard !t.isEmpty, let col = column ?? sortedColumns.first else { return }
                     let nextOrder = (col.cards.map(\.sortOrder).max() ?? -1) + 1
                     let card = ProjectKanbanCard(title: t, body: bodyText, sortOrder: nextOrder, column: col, milestone: milestone)
                     modelContext.insert(card)
@@ -789,14 +802,14 @@ private struct MainBoardNewCardSheet: View {
                     onDismiss()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || mainBoardColumns.isEmpty)
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || columns.isEmpty)
             }
         }
         .padding(20)
         .frame(minWidth: 400)
         .onAppear {
             if column == nil {
-                column = mainBoardColumns.sorted { $0.sortOrder < $1.sortOrder }.first
+                column = sortedColumns.first
             }
         }
     }
