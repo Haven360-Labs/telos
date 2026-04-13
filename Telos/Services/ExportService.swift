@@ -13,7 +13,7 @@ enum ExportService {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.prompt = "Export Here"
-        panel.message = "Choose a folder. Telos will create telos_tasks.csv and telos_notes.csv with all plans, tasks, and notes."
+        panel.message = "Choose a folder. Telos will create telos_tasks.csv and telos_notes.csv with all plans, tasks, and notes (notes include an optional project_name column)."
         panel.runModal()
 
         guard let url = panel.url else { return }
@@ -85,14 +85,15 @@ enum ExportService {
         var descriptor = FetchDescriptor<PlanNote>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
         let notes = (try? modelContext.fetch(descriptor)) ?? []
         var rows: [String] = []
-        rows.append("created_at,title,content,plan_date")
+        rows.append("created_at,title,content,plan_date,project_name")
         let iso = ISO8601DateFormatter()
         let dateOnly = ISO8601DateFormatter()
         dateOnly.formatOptions = [.withFullDate, .withDashSeparatorInDate]
         for note in notes {
             let created = iso.string(from: note.createdAt)
             let planDate = note.planDay.map { dateOnly.string(from: $0.date) } ?? ""
-            rows.append([created, escapeCSV(note.title), escapeCSV(note.content), planDate].joined(separator: ","))
+            let projectName = note.project.map(\.name) ?? ""
+            rows.append([created, escapeCSV(note.title), escapeCSV(note.content), planDate, escapeCSV(projectName)].joined(separator: ","))
         }
         return rows.joined(separator: "\n")
     }

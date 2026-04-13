@@ -7,7 +7,11 @@ struct MenuBarView: View {
     @Environment(TimerStore.self) private var timerStore
     @Environment(StreakStore.self) private var streakStore
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \PlanNote.createdAt, order: .reverse) private var notes: [PlanNote]
+    @Query(
+        filter: #Predicate<PlanNote> { $0.project == nil },
+        sort: \PlanNote.createdAt,
+        order: .reverse
+    ) private var notes: [PlanNote]
     @State private var showQuickAdd = false
     @State private var quickAddTitle = ""
     @State private var quickAddQuadrant: EisenhowerQuadrant = AppTaskSettings.defaultQuadrant

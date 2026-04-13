@@ -8,12 +8,14 @@ final class PlanNote {
     var content: String
     var createdAt: Date
     var planDay: PlanDay?
+    var project: Project?
 
-    init(title: String = "", content: String, createdAt: Date = Date(), planDay: PlanDay? = nil) {
+    init(title: String = "", content: String, createdAt: Date = Date(), planDay: PlanDay? = nil, project: Project? = nil) {
         self.title = title
         self.content = content
         self.createdAt = createdAt
         self.planDay = planDay
+        self.project = project
     }
 
     /// Title for list display; falls back to content preview when title is empty.

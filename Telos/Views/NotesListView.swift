@@ -4,7 +4,11 @@ import SwiftData
 struct NotesListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(StreakStore.self) private var streakStore
-    @Query(sort: \PlanNote.createdAt, order: .reverse) private var notes: [PlanNote]
+    @Query(
+        filter: #Predicate<PlanNote> { $0.project == nil },
+        sort: \PlanNote.createdAt,
+        order: .reverse
+    ) private var notes: [PlanNote]
     @State private var showAddNote = false
     @State private var newNoteTitle = ""
     @State private var newNoteContent = ""

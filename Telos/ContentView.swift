@@ -18,6 +18,7 @@ private enum SidebarItem: String, CaseIterable, Identifiable {
     case notes = "Notes"
     case challenge = "Challenge"
     case retrospective = "Retrospective"
+    case project = "Project"
     case settings = "Settings"
     case future = "Future"
     case goals = "Goals"
@@ -208,6 +209,9 @@ struct ContentView: View {
                 NavigationLink(value: SidebarItem.retrospective) {
                     Label("Retrospective", systemImage: "arrow.triangle.2.circlepath")
                 }
+                NavigationLink(value: SidebarItem.project) {
+                    Label("Project", systemImage: "folder.badge.gearshape")
+                }
                 NavigationLink(value: SidebarItem.settings) {
                     Label("Settings", systemImage: "gearshape")
                 }
@@ -259,6 +263,10 @@ struct ContentView: View {
                 ChallengeListView()
             case .retrospective:
                 RetrospectiveView()
+            case .project:
+                NavigationStack {
+                    ProjectHubView()
+                }
             case .settings:
                 SettingsView()
             case .future:
@@ -1016,5 +1024,22 @@ struct MoveFromPastDaySheet: View {
         .environment(DayStore())
         .environment(TimerStore())
         .environment(StreakStore())
-        .modelContainer(for: [PlanDay.self, PlanTask.self, PlanNote.self, RetrospectiveEntry.self, Challenge.self, ChallengeDayProgress.self, ChallengeRetrospective.self, FutureTask.self, PlanGoal.self], inMemory: true)
+        .modelContainer(for: [
+            PlanDay.self,
+            PlanTask.self,
+            PlanNote.self,
+            Project.self,
+            ProjectKanbanColumn.self,
+            ProjectKanbanCard.self,
+            ProjectSprint.self,
+            ProjectRetrospective.self,
+            ProjectTimelineEvent.self,
+            ProjectDocument.self,
+            RetrospectiveEntry.self,
+            Challenge.self,
+            ChallengeDayProgress.self,
+            ChallengeRetrospective.self,
+            FutureTask.self,
+            PlanGoal.self,
+        ], inMemory: true)
 }
