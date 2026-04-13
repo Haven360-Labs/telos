@@ -10,7 +10,6 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
     case notes
     case sprints
     case retrospectives
-    case timeline
     case releases
     case testing
     case documents
@@ -27,7 +26,6 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         case .notes: return "Notes"
         case .sprints: return "Sprints"
         case .retrospectives: return "Retrospectives"
-        case .timeline: return "Timeline"
         case .releases: return "Releases"
         case .testing: return "Testing"
         case .documents: return "Documents"
@@ -44,7 +42,6 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         case .notes: return "note.text"
         case .sprints: return "calendar.badge.clock"
         case .retrospectives: return "arrow.triangle.2.circlepath"
-        case .timeline: return "timeline.selection"
         case .releases: return "shippingbox"
         case .testing: return "checklist"
         case .documents: return "doc.richtext"
@@ -147,7 +144,7 @@ struct ProjectHubView: View {
             }
         } message: {
             if let project = projectPendingDeletion {
-                Text("“\(project.name)” and everything inside it (notes, board & tasks, sprints, retrospectives, timeline, roadmap, releases, and other project data) will be permanently removed.")
+                Text("“\(project.name)” and everything inside it (notes, board & tasks, sprints, retrospectives, roadmap, releases, and other project data) will be permanently removed.")
             }
         }
         .sheet(isPresented: $showNewProjectSheet) {
@@ -246,8 +243,6 @@ struct ProjectHubView: View {
                     ProjectSprintsSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .retrospectives:
                     ProjectRetrospectivesSection(project: project, modelContext: modelContext, streakStore: streakStore)
-                case .timeline:
-                    ProjectTimelineSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .releases:
                     ProjectReleasesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .testing:
@@ -1261,143 +1256,6 @@ private struct ProjectRetrospectivesSection: View {
     }
 }
 
-// MARK: - Timeline
-
-private struct ProjectTimelineSection: View {
-    var project: Project
-    var modelContext: ModelContext
-    var streakStore: StreakStore
-
-    @State private var showAdd = false
-    @State private var title = ""
-    @State private var startDate = Date()
-    @State private var hasEnd = false
-    @State private var endDate = Date()
-    @State private var detail = ""
-    @State private var selected: ProjectTimelineEvent?
-
-    private var sortedEvents: [ProjectTimelineEvent] {
-        project.timelineEvents.sorted { e1, e2 in
-            if e1.startDate != e2.startDate { return e1.startDate < e2.startDate }
-            return e1.sortOrder < e2.sortOrder
-        }
-    }
-
-    var body: some View {
-        Group {
-            if let ev = selected {
-                TimelineEventEditorView(event: ev, modelContext: modelContext)
-            } else {
-                List(selection: $selected) {
-                    ForEach(sortedEvents) { event in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(event.title)
-                                .font(.headline)
-                            Text(event.startDate.formatted(date: .abbreviated, time: .omitted))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .tag(event)
-                        .contextMenu {
-                            Button("Delete event", role: .destructive) {
-                                if selected?.persistentModelID == event.persistentModelID {
-                                    selected = nil
-                                }
-                                modelContext.delete(event)
-                                try? modelContext.save()
-                                streakStore.recordUsage()
-                            }
-                        }
-                    }
-                    .onDelete(perform: deleteEvents)
-                }
-                .listStyle(.inset)
-            }
-        }
-        .sheet(isPresented: $showAdd) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("New timeline event")
-                    .font(.headline)
-                TextField("Title", text: $title)
-                    .textFieldStyle(.roundedBorder)
-                DatePicker("Start", selection: $startDate, displayedComponents: .date)
-                Toggle("End date", isOn: $hasEnd)
-                if hasEnd {
-                    DatePicker("End", selection: $endDate, displayedComponents: .date)
-                }
-                TextField("Details", text: $detail, axis: .vertical)
-                    .lineLimit(2...5)
-                    .textFieldStyle(.roundedBorder)
-                HStack {
-                    Spacer()
-                    Button("Cancel") { showAdd = false }
-                    Button("Add") {
-                        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !t.isEmpty else { return }
-                        let nextOrder = (project.timelineEvents.map(\.sortOrder).max() ?? -1) + 1
-                        let end: Date? = hasEnd ? Calendar.current.startOfDay(for: endDate) : nil
-                        let start = Calendar.current.startOfDay(for: startDate)
-                        if let e = end, e < start { return }
-                        let event = ProjectTimelineEvent(
-                            title: t,
-                            startDate: start,
-                            endDate: end,
-                            detail: detail,
-                            sortOrder: nextOrder,
-                            project: project
-                        )
-                        modelContext.insert(event)
-                        project.timelineEvents.append(event)
-                        try? modelContext.save()
-                        streakStore.recordUsage()
-                        showAdd = false
-                        title = ""
-                        detail = ""
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            .padding(20)
-            .frame(minWidth: 340)
-        }
-        .toolbar {
-            if selected == nil {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Add event") { showAdd = true }
-                }
-            } else {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        try? modelContext.save()
-                        selected = nil
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Delete event", role: .destructive) {
-                        if let event = selected {
-                            modelContext.delete(event)
-                            try? modelContext.save()
-                            selected = nil
-                            streakStore.recordUsage()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func deleteEvents(at offsets: IndexSet) {
-        for index in offsets {
-            let e = sortedEvents[index]
-            if selected?.persistentModelID == e.persistentModelID { selected = nil }
-            modelContext.delete(e)
-        }
-        try? modelContext.save()
-        streakStore.recordUsage()
-    }
-}
-
 // MARK: - Documents
 
 private struct ProjectDocumentsSection: View {
@@ -1610,56 +1468,6 @@ private struct RetroEditorView: View {
                     .font(.body)
                     .frame(minHeight: 200)
                     .padding(10)
-                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-        .onDisappear { try? modelContext.save() }
-    }
-}
-
-private struct TimelineEventEditorView: View {
-    @Bindable var event: ProjectTimelineEvent
-    var modelContext: ModelContext
-    @State private var hasEndDate: Bool
-
-    init(event: ProjectTimelineEvent, modelContext: ModelContext) {
-        self.event = event
-        self.modelContext = modelContext
-        _hasEndDate = State(initialValue: event.endDate != nil)
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                TextField("Title", text: $event.title)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .textFieldStyle(.roundedBorder)
-                DatePicker("Start", selection: $event.startDate, displayedComponents: .date)
-                Toggle("End date", isOn: $hasEndDate)
-                    .onChange(of: hasEndDate) { _, on in
-                        if !on {
-                            event.endDate = nil
-                        } else if event.endDate == nil {
-                            event.endDate = event.startDate
-                        }
-                    }
-                if hasEndDate {
-                    DatePicker(
-                        "End",
-                        selection: Binding(
-                            get: { event.endDate ?? event.startDate },
-                            set: { event.endDate = $0 }
-                        ),
-                        displayedComponents: .date
-                    )
-                }
-                TextEditor(text: $event.detail)
-                    .font(.body)
-                    .frame(minHeight: 100)
-                    .padding(8)
                     .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
             }
             .padding(24)

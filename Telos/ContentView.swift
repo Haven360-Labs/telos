@@ -1034,7 +1034,6 @@ struct MoveFromPastDaySheet: View {
             ProjectKanbanChecklistItem.self,
             ProjectSprint.self,
             ProjectRetrospective.self,
-            ProjectTimelineEvent.self,
             ProjectDocument.self,
             ProjectTheme.self,
             ProjectEpic.self,

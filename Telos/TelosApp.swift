@@ -23,7 +23,6 @@ struct TelosApp: App {
             ProjectKanbanChecklistItem.self,
             ProjectSprint.self,
             ProjectRetrospective.self,
-            ProjectTimelineEvent.self,
             ProjectDocument.self,
             ProjectTheme.self,
             ProjectEpic.self,

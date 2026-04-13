@@ -3,7 +3,7 @@ import SwiftData
 
 // MARK: - Project (root)
 
-/// Container for project-scoped notes, board, sprints, retros, timeline, and documents.
+/// Container for project-scoped notes, board, sprints, retros, and documents.
 @Model
 final class Project {
     var name: String
@@ -23,9 +23,6 @@ final class Project {
 
     @Relationship(deleteRule: .cascade, inverse: \ProjectRetrospective.project)
     var retrospectives: [ProjectRetrospective] = []
-
-    @Relationship(deleteRule: .cascade, inverse: \ProjectTimelineEvent.project)
-    var timelineEvents: [ProjectTimelineEvent] = []
 
     @Relationship(deleteRule: .cascade, inverse: \ProjectDocument.project)
     var documents: [ProjectDocument] = []
@@ -162,34 +159,6 @@ final class ProjectRetrospective {
         self.createdAt = createdAt
         self.project = project
         self.sprint = sprint
-    }
-}
-
-// MARK: - Timeline
-
-@Model
-final class ProjectTimelineEvent {
-    var title: String
-    var startDate: Date
-    var endDate: Date?
-    var detail: String
-    var sortOrder: Int
-    var project: Project?
-
-    init(
-        title: String,
-        startDate: Date,
-        endDate: Date? = nil,
-        detail: String = "",
-        sortOrder: Int = 0,
-        project: Project? = nil
-    ) {
-        self.title = title
-        self.startDate = startDate
-        self.endDate = endDate
-        self.detail = detail
-        self.sortOrder = sortOrder
-        self.project = project
     }
 }
 
