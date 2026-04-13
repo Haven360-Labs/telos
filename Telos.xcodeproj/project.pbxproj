@@ -35,6 +35,7 @@
 		A1000026 /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026 /* GoalsView.swift */; };
 		A1000027 /* ProjectModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000027 /* ProjectModels.swift */; };
 		A1000028 /* ProjectHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000028 /* ProjectHubView.swift */; };
+		A1000029 /* KanbanCardDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000029 /* KanbanCardDragPayload.swift */; };
 		BB47052E2F407BE500092F83 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB47052D2F407BE500092F83 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -68,6 +69,7 @@
 		A2000026 /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		A2000027 /* ProjectModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectModels.swift; sourceTree = "<group>"; };
 		A2000028 /* ProjectHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectHubView.swift; sourceTree = "<group>"; };
+		A2000029 /* KanbanCardDragPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanCardDragPayload.swift; sourceTree = "<group>"; };
 		BB47052D2F407BE500092F83 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -154,6 +156,7 @@
 				A2000023 /* FutureView.swift */,
 				A2000026 /* GoalsView.swift */,
 				A2000028 /* ProjectHubView.swift */,
+				A2000029 /* KanbanCardDragPayload.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -250,6 +253,7 @@
 				A1000026 /* GoalsView.swift in Sources */,
 				A1000027 /* ProjectModels.swift in Sources */,
 				A1000028 /* ProjectHubView.swift in Sources */,
+				A1000029 /* KanbanCardDragPayload.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

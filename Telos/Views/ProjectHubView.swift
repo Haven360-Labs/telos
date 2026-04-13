@@ -390,6 +390,8 @@ private struct KanbanBoardSection: View {
     @State private var newCardTitle = ""
     @State private var newCardBody = ""
     @State private var addCardColumn: ProjectKanbanColumn?
+    @State private var dropTargetCardID: PersistentIdentifier?
+    @State private var dropTargetColumnEndID: PersistentIdentifier?
 
     private var sortedColumns: [ProjectKanbanColumn] {
         columns.sorted { $0.sortOrder < $1.sortOrder }
@@ -421,6 +423,7 @@ private struct KanbanBoardSection: View {
                     ForEach(column.sortedCards) { card in
                         boardCardRow(card, column: column)
                     }
+                    columnEndDropZone(column)
                 }
             }
             .frame(minWidth: 220, maxWidth: 280, maxHeight: .infinity)
@@ -439,8 +442,33 @@ private struct KanbanBoardSection: View {
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
     }
 
+    private func columnEndDropZone(_ column: ProjectKanbanColumn) -> some View {
+        let isTargeted = dropTargetColumnEndID == column.persistentModelID
+        return Color.clear
+            .frame(minHeight: 36)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .overlay {
+                if isTargeted {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(.secondary, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                }
+            }
+            .dropDestination(for: KanbanCardDragPayload.self) { items, _ in
+                handleCardDrop(items: items, column: column, before: nil)
+            } isTargeted: { targeted in
+                if targeted {
+                    dropTargetColumnEndID = column.persistentModelID
+                } else if dropTargetColumnEndID == column.persistentModelID {
+                    dropTargetColumnEndID = nil
+                }
+            }
+            .help("Drop here to move to the bottom of this column")
+    }
+
     private func boardCardRow(_ card: ProjectKanbanCard, column: ProjectKanbanColumn) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let isDropBefore = dropTargetCardID == card.persistentModelID
+        return VStack(alignment: .leading, spacing: 6) {
             Text(card.title.isEmpty ? "Untitled" : card.title)
                 .font(.subheadline)
                 .fontWeight(.medium)
@@ -451,7 +479,7 @@ private struct KanbanBoardSection: View {
                     .lineLimit(3)
             }
             Menu {
-                ForEach(sortedColumns.filter { $0.id != column.id }) { other in
+                ForEach(sortedColumns.filter { $0.persistentModelID != column.persistentModelID }) { other in
                     Button("Move to \(other.title)") {
                         moveCard(card, to: other)
                     }
@@ -475,13 +503,52 @@ private struct KanbanBoardSection: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background.opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(alignment: .top) {
+            if isDropBefore {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(height: 3)
+                    .padding(.horizontal, 4)
+            }
+        }
+        .draggable(KanbanCardDragPayload(card: card)) {
+            cardDragPreview(card)
+        }
+        .dropDestination(for: KanbanCardDragPayload.self) { items, _ in
+            handleCardDrop(items: items, column: column, before: card)
+        } isTargeted: { targeted in
+            if targeted {
+                dropTargetCardID = card.persistentModelID
+            } else if dropTargetCardID == card.persistentModelID {
+                dropTargetCardID = nil
+            }
+        }
+        .help("Drag to reorder within the column or move to another column")
+    }
+
+    private func cardDragPreview(_ card: ProjectKanbanCard) -> some View {
+        Text(card.title.isEmpty ? "Card" : card.title)
+            .font(.subheadline)
+            .fontWeight(.medium)
+            .lineLimit(2)
+            .padding(10)
+            .frame(minWidth: 120, maxWidth: 200)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            .shadow(radius: 4)
+    }
+
+    private func handleCardDrop(items: [KanbanCardDragPayload], column: ProjectKanbanColumn, before targetCard: ProjectKanbanCard?) -> Bool {
+        guard let payload = items.first,
+              let dragged = KanbanBoardDragSupport.card(for: payload, modelContext: modelContext) else { return false }
+        withAnimation(.default) {
+            KanbanBoardDragSupport.drop(dragged: dragged, targetColumn: column, before: targetCard, modelContext: modelContext)
+        }
+        streakStore.recordUsage()
+        return true
     }
 
     private func moveCard(_ card: ProjectKanbanCard, to column: ProjectKanbanColumn) {
-        card.column = column
-        let nextOrder = (column.cards.map(\.sortOrder).max() ?? -1) + 1
-        card.sortOrder = nextOrder
-        try? modelContext.save()
+        KanbanBoardDragSupport.drop(dragged: card, targetColumn: column, before: nil, modelContext: modelContext)
         streakStore.recordUsage()
     }
 
