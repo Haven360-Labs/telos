@@ -6,9 +6,8 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
     case overview
     case roadmap
     case milestones
-    case issues
+    case boardAndTasks
     case notes
-    case board
     case sprints
     case retrospectives
     case timeline
@@ -23,9 +22,8 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         case .overview: return "Overview"
         case .roadmap: return "Roadmap"
         case .milestones: return "Milestones"
-        case .issues: return "Tasks"
+        case .boardAndTasks: return "Board & tasks"
         case .notes: return "Notes"
-        case .board: return "Board"
         case .sprints: return "Sprints"
         case .retrospectives: return "Retrospectives"
         case .timeline: return "Timeline"
@@ -40,9 +38,8 @@ private enum ProjectDetailSection: String, CaseIterable, Identifiable {
         case .overview: return "rectangle.grid.1x2"
         case .roadmap: return "map"
         case .milestones: return "flag.checkered"
-        case .issues: return "checkmark.circle"
+        case .boardAndTasks: return "rectangle.split.3x1"
         case .notes: return "note.text"
-        case .board: return "rectangle.split.3x1"
         case .sprints: return "calendar.badge.clock"
         case .retrospectives: return "arrow.triangle.2.circlepath"
         case .timeline: return "timeline.selection"
@@ -147,7 +144,7 @@ struct ProjectHubView: View {
             }
         } message: {
             if let project = projectPendingDeletion {
-                Text("“\(project.name)” and everything inside it (notes, board, sprints, retrospectives, timeline, roadmap, issues, releases, and other project data) will be permanently removed.")
+                Text("“\(project.name)” and everything inside it (notes, board & tasks, sprints, retrospectives, timeline, roadmap, releases, and other project data) will be permanently removed.")
             }
         }
         .sheet(isPresented: $showNewProjectSheet) {
@@ -238,12 +235,10 @@ struct ProjectHubView: View {
                     ProjectRoadmapHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .milestones:
                     ProjectMilestonesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
-                case .issues:
-                    ProjectIssuesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                case .boardAndTasks:
+                    ProjectBoardAndTasksSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .notes:
                     ProjectNotesSection(project: project, modelContext: modelContext, streakStore: streakStore)
-                case .board:
-                    ProjectBoardSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .sprints:
                     ProjectSprintsSection(project: project, modelContext: modelContext, streakStore: streakStore)
                 case .retrospectives:
@@ -772,6 +767,46 @@ private struct KanbanBoardSection: View {
             try? modelContext.save()
             streakStore.recordUsage()
         })
+    }
+}
+
+private enum ProjectWorkHubTab: String, CaseIterable, Identifiable {
+    case board = "Board"
+    case tasks = "Tasks"
+    var id: String { rawValue }
+}
+
+/// Single hub for the main kanban board and the task list (`ProjectIssue`).
+private struct ProjectBoardAndTasksSection: View {
+    var project: Project
+    var modelContext: ModelContext
+    var streakStore: StreakStore
+
+    @State private var tab: ProjectWorkHubTab = .board
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Board or tasks", selection: $tab) {
+                ForEach(ProjectWorkHubTab.allCases) { t in
+                    Text(t.rawValue).tag(t)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+
+            Group {
+                switch tab {
+                case .board:
+                    ProjectBoardSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                case .tasks:
+                    ProjectIssuesHubSection(project: project, modelContext: modelContext, streakStore: streakStore)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 }
 
