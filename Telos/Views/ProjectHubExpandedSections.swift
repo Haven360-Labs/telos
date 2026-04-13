@@ -70,20 +70,6 @@ struct KanbanCardDetailForm: View {
                     }
                 }
             }
-            Section("RICE (1–10, 0 = unset)") {
-                Stepper("Reach: \(card.riceReach)", value: $card.riceReach, in: 0...10)
-                Stepper("Impact: \(card.riceImpact)", value: $card.riceImpact, in: 0...10)
-                Stepper("Confidence: \(card.riceConfidence)", value: $card.riceConfidence, in: 0...10)
-                Stepper("Effort: \(card.riceEffort)", value: $card.riceEffort, in: 0...10)
-                if let r = KanbanCardScoring.riceScore(card: card) {
-                    Text("RICE score: \(r, format: .number.precision(.fractionLength(2)))")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Set all values with Effort > 0 to see score")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
             Section("Checklist") {
                 ForEach(sortedChecklist) { item in
                     @Bindable var item = item

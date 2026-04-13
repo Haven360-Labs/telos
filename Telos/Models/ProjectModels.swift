@@ -101,11 +101,6 @@ final class ProjectKanbanCard {
     var column: ProjectKanbanColumn?
     var epic: ProjectEpic?
     var milestone: ProjectMilestone?
-    /// RICE inputs (1–10); 0 means unset in UI.
-    var riceReach: Int = 0
-    var riceImpact: Int = 0
-    var riceConfidence: Int = 0
-    var riceEffort: Int = 0
 
     @Relationship(deleteRule: .cascade, inverse: \ProjectKanbanChecklistItem.card)
     var checklistItems: [ProjectKanbanChecklistItem] = []
@@ -404,11 +399,6 @@ final class ProjectIssue {
     var status: String
     var priority: String
     var createdAt: Date
-    /// RICE inputs (1–10); 0 means unset in UI.
-    var riceReach: Int = 0
-    var riceImpact: Int = 0
-    var riceConfidence: Int = 0
-    var riceEffort: Int = 0
     var project: Project?
     var epic: ProjectEpic?
     var sprint: ProjectSprint?
@@ -422,10 +412,6 @@ final class ProjectIssue {
         status: String = "open",
         priority: String = "medium",
         createdAt: Date = Date(),
-        riceReach: Int = 0,
-        riceImpact: Int = 0,
-        riceConfidence: Int = 0,
-        riceEffort: Int = 0,
         project: Project? = nil,
         epic: ProjectEpic? = nil,
         sprint: ProjectSprint? = nil,
@@ -438,10 +424,6 @@ final class ProjectIssue {
         self.status = status
         self.priority = priority
         self.createdAt = createdAt
-        self.riceReach = riceReach
-        self.riceImpact = riceImpact
-        self.riceConfidence = riceConfidence
-        self.riceEffort = riceEffort
         self.project = project
         self.epic = epic
         self.sprint = sprint
@@ -526,19 +508,6 @@ final class ProjectChangelogEntry {
         self.body = body
         self.project = project
         self.release = release
-    }
-}
-
-// MARK: - Card scoring (UI helpers)
-
-enum KanbanCardScoring {
-    /// RICE: (Reach × Impact × Confidence) / Effort; inputs 1–10, effort must be > 0.
-    static func riceScore(card: ProjectKanbanCard) -> Double? {
-        guard card.riceEffort > 0,
-              card.riceReach > 0, card.riceReach <= 10,
-              card.riceImpact > 0, card.riceImpact <= 10,
-              card.riceConfidence > 0, card.riceConfidence <= 10 else { return nil }
-        return Double(card.riceReach * card.riceImpact * card.riceConfidence) / Double(card.riceEffort)
     }
 }
 
