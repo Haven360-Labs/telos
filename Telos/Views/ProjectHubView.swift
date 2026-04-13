@@ -584,11 +584,16 @@ private struct ProjectNotesSection: View {
 
 /// Shared kanban UI for the project main board or a sprint board.
 private struct KanbanBoardSection: View {
+    private static let countdownDurations = [15, 30, 45, 60, 75, 90]
+
     var columns: [ProjectKanbanColumn]
     /// Project whose milestones appear in the card inspector (optional milestone link).
     var project: Project?
     var modelContext: ModelContext
     var streakStore: StreakStore
+
+    @Environment(TimerStore.self) private var timerStore
+    @Environment(DayStore.self) private var dayStore
 
     @State private var cardForInspector: ProjectKanbanCard?
     @State private var newCardTitle = ""
@@ -596,6 +601,8 @@ private struct KanbanBoardSection: View {
     @State private var addCardColumn: ProjectKanbanColumn?
     @State private var dropTargetCardID: PersistentIdentifier?
     @State private var dropTargetColumnEndID: PersistentIdentifier?
+    @State private var showBoardCustomTimer = false
+    @State private var boardCustomTimerCard: ProjectKanbanCard?
 
     private var sortedColumns: [ProjectKanbanColumn] {
         columns.sorted { $0.sortOrder < $1.sortOrder }
@@ -622,6 +629,24 @@ private struct KanbanBoardSection: View {
                 streakStore: streakStore,
                 onDismiss: { cardForInspector = nil }
             )
+        }
+        .sheet(isPresented: $showBoardCustomTimer) {
+            if let card = boardCustomTimerCard {
+                CustomTimerSheet(
+                    onStart: { totalMinutes in
+                        let task = ensureTodayLinkedPlanTask(for: card)
+                        timerStore.startCountdown(task: task, durationMinutes: totalMinutes, modelContext: modelContext)
+                        streakStore.recordUsage()
+                        showBoardCustomTimer = false
+                        boardCustomTimerCard = nil
+                    },
+                    onCancel: {
+                        showBoardCustomTimer = false
+                        boardCustomTimerCard = nil
+                    }
+                )
+                .frame(minWidth: 280, minHeight: 180)
+            }
         }
     }
 
@@ -679,6 +704,8 @@ private struct KanbanBoardSection: View {
 
     private func boardCardRow(_ card: ProjectKanbanCard, column: ProjectKanbanColumn) -> some View {
         let isDropBefore = dropTargetCardID == card.persistentModelID
+        let tracked = displayTrackedSeconds(for: card)
+        let boardTimerActive = isBoardTimerActive(on: card)
         return VStack(alignment: .leading, spacing: 6) {
             Button {
                 cardForInspector = card
@@ -702,38 +729,85 @@ private struct KanbanBoardSection: View {
             }
             .buttonStyle(.plain)
             .help("Show task details")
-            Menu {
-                ForEach(sortedColumns.filter { $0.persistentModelID != column.persistentModelID }) { other in
-                    Button("Move to \(other.title)") {
-                        moveCard(card, to: other)
-                    }
+            HStack(alignment: .center, spacing: 8) {
+                if tracked > 0 {
+                    Text(formatBoardTrackedTime(tracked))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
-                if let project, !sprintsToMove(from: column).isEmpty {
-                    Divider()
-                    Menu("Add to sprint") {
-                        ForEach(sprintsToMove(from: column)) { sprint in
-                            let suffix = sprint.isArchived ? " (archived)" : ""
-                            Button("\(sprint.title)\(suffix)") {
-                                moveCardToSprint(card, sprint: sprint)
+                Spacer(minLength: 0)
+                if boardTimerActive {
+                    Image(systemName: "timer")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.orange)
+                        .help("Timer running (see Today)")
+                } else {
+                    Menu {
+                        Button {
+                            let task = ensureTodayLinkedPlanTask(for: card)
+                            timerStore.startCountUp(task: task, modelContext: modelContext)
+                            streakStore.recordUsage()
+                        } label: {
+                            Label("Count up", systemImage: "arrow.up.circle")
+                        }
+                        Divider()
+                        Text("Countdown")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ForEach(Self.countdownDurations, id: \.self) { minutes in
+                            Button("\(minutes) min") {
+                                let task = ensureTodayLinkedPlanTask(for: card)
+                                timerStore.startCountdown(task: task, durationMinutes: minutes, modelContext: modelContext)
+                                streakStore.recordUsage()
+                            }
+                        }
+                        Button("Custom…") {
+                            boardCustomTimerCard = card
+                            showBoardCustomTimer = true
+                        }
+                    } label: {
+                        Image(systemName: "play.circle")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .help("Start timer on Today")
+                }
+                Menu {
+                    ForEach(sortedColumns.filter { $0.persistentModelID != column.persistentModelID }) { other in
+                        Button("Move to \(other.title)") {
+                            moveCard(card, to: other)
+                        }
+                    }
+                    if let project, !sprintsToMove(from: column).isEmpty {
+                        Divider()
+                        Menu("Add to sprint") {
+                            ForEach(sprintsToMove(from: column)) { sprint in
+                                let suffix = sprint.isArchived ? " (archived)" : ""
+                                Button("\(sprint.title)\(suffix)") {
+                                    moveCardToSprint(card, sprint: sprint)
+                                }
                             }
                         }
                     }
+                    Divider()
+                    Button("Edit card…") {
+                        cardForInspector = card
+                    }
+                    Button("Delete", role: .destructive) {
+                        stopTimerIfLinked(to: card)
+                        modelContext.delete(card)
+                        try? modelContext.save()
+                        streakStore.recordUsage()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                Divider()
-                Button("Edit card…") {
-                    cardForInspector = card
-                }
-                Button("Delete", role: .destructive) {
-                    modelContext.delete(card)
-                    try? modelContext.save()
-                    streakStore.recordUsage()
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .menuStyle(.borderlessButton)
             }
-            .menuStyle(.borderlessButton)
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -745,6 +819,9 @@ private struct KanbanBoardSection: View {
                     .frame(height: 3)
                     .padding(.horizontal, 4)
             }
+        }
+        .onAppear {
+            syncTodayLinkedTaskTitle(with: card)
         }
         .draggable(KanbanCardDragPayload(card: card)) {
             cardDragPreview(card)
@@ -806,6 +883,90 @@ private struct KanbanBoardSection: View {
             KanbanBoardDragSupport.drop(dragged: card, targetColumn: target, before: nil, modelContext: modelContext)
         }
         streakStore.recordUsage()
+    }
+
+    // MARK: - Board card ↔ Today timer (linked PlanTask)
+
+    private func ensureTodayLinkedPlanTask(for card: ProjectKanbanCard) -> PlanTask {
+        dayStore.ensureTodayExists(modelContext: modelContext)
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        let planDay = dayStore.fetchDay(for: todayStart, modelContext: modelContext)
+            ?? dayStore.ensureDayExists(for: todayStart, modelContext: modelContext)
+        if let existing = planDay.tasks.first(where: {
+            $0.parent == nil && !$0.isArchived && $0.linkedKanbanCard?.persistentModelID == card.persistentModelID
+        }) {
+            syncTodayLinkedTaskTitle(planTask: existing, card: card)
+            return existing
+        }
+        let nextOrder = (planDay.tasks.filter { $0.parent == nil }.map(\.sortOrder).max() ?? -1) + 1
+        let title = card.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled" : card.title
+        let task = PlanTask(
+            title: title,
+            sortOrder: nextOrder,
+            planDay: planDay,
+            parent: nil,
+            quadrant: AppTaskSettings.defaultQuadrant,
+            linkedKanbanCard: card
+        )
+        modelContext.insert(task)
+        planDay.tasks.append(task)
+        try? modelContext.save()
+        return task
+    }
+
+    private func syncTodayLinkedTaskTitle(with card: ProjectKanbanCard) {
+        let cal = Calendar.current
+        let todayStart = cal.startOfDay(for: Date())
+        guard let day = dayStore.fetchDay(for: todayStart, modelContext: modelContext) else { return }
+        for task in day.tasks where task.parent == nil && task.linkedKanbanCard?.persistentModelID == card.persistentModelID {
+            syncTodayLinkedTaskTitle(planTask: task, card: card)
+        }
+    }
+
+    private func syncTodayLinkedTaskTitle(planTask: PlanTask, card: ProjectKanbanCard) {
+        let t = card.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled" : card.title
+        guard planTask.title != t else { return }
+        planTask.title = t
+        try? modelContext.save()
+    }
+
+    private func displayTrackedSeconds(for card: ProjectKanbanCard) -> Double {
+        _ = timerStore.countUpTick
+        let stored = card.linkedPlanTasks.reduce(0) { $0 + $1.timeSpentSeconds }
+        guard let id = timerStore.activeTaskID,
+              let task = modelContext.model(for: id) as? PlanTask,
+              task.linkedKanbanCard?.persistentModelID == card.persistentModelID else { return stored }
+        if timerStore.isCountUp {
+            return stored + timerStore.countUpElapsedSeconds
+        }
+        if timerStore.countdownTotalSeconds > 0 {
+            let partial = timerStore.countdownTotalSeconds - timerStore.countdownRemainingSeconds
+            return stored + max(0, partial)
+        }
+        return stored
+    }
+
+    private func formatBoardTrackedTime(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded())
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if h > 0 { return "\(h)h \(m)m" }
+        if m > 0 { return "\(m)m \(s)s" }
+        return "\(s)s"
+    }
+
+    private func isBoardTimerActive(on card: ProjectKanbanCard) -> Bool {
+        guard let id = timerStore.activeTaskID,
+              let task = modelContext.model(for: id) as? PlanTask else { return false }
+        return task.linkedKanbanCard?.persistentModelID == card.persistentModelID
+    }
+
+    private func stopTimerIfLinked(to card: ProjectKanbanCard) {
+        for task in card.linkedPlanTasks where timerStore.isActive(task: task) {
+            timerStore.stopAndRecord(modelContext: modelContext)
+            return
+        }
     }
 
     private func newCardSheet(column: ProjectKanbanColumn) -> some View {

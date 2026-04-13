@@ -139,6 +139,13 @@ struct TaskRowView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    if task.linkedKanbanCard != nil {
+                        Image(systemName: "rectangle.split.3x1")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .help("Linked to a project board task")
+                    }
+
                     Spacer()
 
                     if timerStore.isActive(task: task) {

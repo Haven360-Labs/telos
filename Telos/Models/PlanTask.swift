@@ -75,6 +75,8 @@ final class PlanTask {
     var parent: PlanTask?
     /// When set, this task was created from "Make task" on a challenge; timer time is also recorded on the challenge's day progress.
     var linkedChallenge: Challenge?
+    /// When set, this row is the Today plan entry for time tracked from a project board card.
+    var linkedKanbanCard: ProjectKanbanCard?
     @Relationship(deleteRule: .cascade, inverse: \PlanTask.parent)
     var subtasks: [PlanTask] = []
 
@@ -91,7 +93,8 @@ final class PlanTask {
         planDay: PlanDay? = nil,
         parent: PlanTask? = nil,
         quadrant: EisenhowerQuadrant = .notImportantNotUrgent,
-        scheduledDate: Date? = nil
+        scheduledDate: Date? = nil,
+        linkedKanbanCard: ProjectKanbanCard? = nil
     ) {
         self.title = title
         self.isCompleted = isCompleted
@@ -101,6 +104,7 @@ final class PlanTask {
         self.parent = parent
         self.quadrantRaw = quadrant.rawValue
         self.scheduledDate = scheduledDate
+        self.linkedKanbanCard = linkedKanbanCard
     }
 
     /// Top-level tasks only (no parent).

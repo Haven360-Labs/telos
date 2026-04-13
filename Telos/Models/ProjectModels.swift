@@ -105,6 +105,9 @@ final class ProjectKanbanCard {
     @Relationship(deleteRule: .nullify, inverse: \ProjectIssue.kanbanCard)
     var linkedIssues: [ProjectIssue] = []
 
+    @Relationship(deleteRule: .nullify, inverse: \PlanTask.linkedKanbanCard)
+    var linkedPlanTasks: [PlanTask] = []
+
     init(title: String, body: String = "", sortOrder: Int = 0, column: ProjectKanbanColumn? = nil, epic: ProjectEpic? = nil, milestone: ProjectMilestone? = nil) {
         self.title = title
         self.body = body
