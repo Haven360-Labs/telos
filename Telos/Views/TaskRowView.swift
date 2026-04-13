@@ -22,6 +22,7 @@ struct TaskRowView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(StreakStore.self) private var streakStore
     @Environment(ProjectBoardNavigationStore.self) private var projectBoardNavigation
+    @Query(sort: \Project.createdAt, order: .reverse) private var allProjects: [Project]
     @State private var isAddingSubtask = false
     @State private var newSubtaskTitle = ""
     @State private var isEditingTitle = false
@@ -34,6 +35,20 @@ struct TaskRowView: View {
 
     private var hasIncompleteSubtasks: Bool {
         !task.subtasks.isEmpty && !task.subtasks.allSatisfy(\.isCompleted)
+    }
+
+    /// Active projects only, sorted by name for the context menu.
+    private var projectsForLinkMenu: [Project] {
+        allProjects
+            .filter { !$0.isArchived }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func projectLinkedToTask(_ task: PlanTask) -> Project? {
+        guard let card = task.linkedKanbanCard,
+              card.column?.sprint == nil,
+              let project = card.column?.project else { return nil }
+        return project
     }
 
     var body: some View {
@@ -227,6 +242,28 @@ struct TaskRowView: View {
                     isTitleFieldFocused = true
                 } label: {
                     Label("Edit", systemImage: "pencil")
+                }
+                if !projectsForLinkMenu.isEmpty {
+                    Menu {
+                        ForEach(projectsForLinkMenu, id: \.persistentModelID) { project in
+                            Button {
+                                PlanTaskProjectLinking.addPlanTaskToProject(
+                                    task,
+                                    project: project,
+                                    modelContext: modelContext,
+                                    streakStore: streakStore
+                                )
+                            } label: {
+                                if projectLinkedToTask(task)?.persistentModelID == project.persistentModelID {
+                                    Label(project.name, systemImage: "checkmark")
+                                } else {
+                                    Text(project.name)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Add to project", systemImage: "folder.badge.plus")
+                    }
                 }
                 Button(role: .destructive) {
                     deleteTask()

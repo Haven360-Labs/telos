@@ -38,6 +38,7 @@
 		A1000029 /* KanbanCardDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000029 /* KanbanCardDragPayload.swift */; };
 		A1000030 /* ProjectHubExpandedSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000030 /* ProjectHubExpandedSections.swift */; };
 		A1000031 /* ProjectBoardNavigationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000031 /* ProjectBoardNavigationStore.swift */; };
+		A1000032 /* PlanTaskProjectLinking.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000032 /* PlanTaskProjectLinking.swift */; };
 		BB47052E2F407BE500092F83 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB47052D2F407BE500092F83 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -74,6 +75,7 @@
 		A2000029 /* KanbanCardDragPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanCardDragPayload.swift; sourceTree = "<group>"; };
 		A2000030 /* ProjectHubExpandedSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectHubExpandedSections.swift; sourceTree = "<group>"; };
 		A2000031 /* ProjectBoardNavigationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectBoardNavigationStore.swift; sourceTree = "<group>"; };
+		A2000032 /* PlanTaskProjectLinking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanTaskProjectLinking.swift; sourceTree = "<group>"; };
 		BB47052D2F407BE500092F83 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -142,6 +144,7 @@
 				A2000005 /* DayStore.swift */,
 				A2000008 /* TimerStore.swift */,
 				A2000031 /* ProjectBoardNavigationStore.swift */,
+				A2000032 /* PlanTaskProjectLinking.swift */,
 				A2000012 /* ExportService.swift */,
 				A2000013 /* StreakStore.swift */,
 			);
@@ -240,6 +243,7 @@
 				A1000007 /* TaskRowView.swift in Sources */,
 				A1000008 /* TimerStore.swift in Sources */,
 				A1000031 /* ProjectBoardNavigationStore.swift in Sources */,
+				A1000032 /* PlanTaskProjectLinking.swift in Sources */,
 				A1000009 /* MenuBarLabelView.swift in Sources */,
 				A1000010 /* PlanNote.swift in Sources */,
 				A1000011 /* NotesListView.swift in Sources */,
