@@ -93,7 +93,7 @@ enum ExportService {
             let created = iso.string(from: note.createdAt)
             let planDate = note.planDay.map { dateOnly.string(from: $0.date) } ?? ""
             let projectName = note.project.map(\.name) ?? ""
-            rows.append([created, escapeCSV(note.title), escapeCSV(note.content), planDate, escapeCSV(projectName)].joined(separator: ","))
+            rows.append([created, escapeCSV(note.title), escapeCSV(note.exportContent), planDate, escapeCSV(projectName)].joined(separator: ","))
         }
         return rows.joined(separator: "\n")
     }

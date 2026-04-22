@@ -1035,6 +1035,7 @@ struct MoveFromPastDaySheet: View {
             PlanDay.self,
             PlanTask.self,
             PlanNote.self,
+            PlanNoteBlock.self,
             Project.self,
             ProjectKanbanColumn.self,
             ProjectKanbanCard.self,

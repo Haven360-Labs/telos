@@ -488,9 +488,6 @@ private struct ProjectNotesSection: View {
     var modelContext: ModelContext
     var streakStore: StreakStore
 
-    @State private var showAddNote = false
-    @State private var newTitle = ""
-    @State private var newContent = ""
     @State private var selectedNote: PlanNote?
 
     private var projectNotes: [PlanNote] {
@@ -499,22 +496,8 @@ private struct ProjectNotesSection: View {
 
     var body: some View {
         Group {
-            if showAddNote {
-                AddNoteScreen(
-                    title: $newTitle,
-                    content: $newContent,
-                    onSave: {
-                        addNote()
-                        showAddNote = false
-                    },
-                    onCancel: {
-                        newTitle = ""
-                        newContent = ""
-                        showAddNote = false
-                    }
-                )
-            } else if let note = selectedNote {
-                NoteDetailView(note: note, modelContext: modelContext, onDismiss: {
+            if let note = selectedNote {
+                NotePageEditorView(note: note, modelContext: modelContext, onDismiss: {
                     selectedNote = nil
                 })
             } else {
@@ -545,22 +528,7 @@ private struct ProjectNotesSection: View {
             }
         }
         .toolbar {
-            if showAddNote {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        newTitle = ""
-                        newContent = ""
-                        showAddNote = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        addNote()
-                        showAddNote = false
-                    }
-                    .disabled(newContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            } else if selectedNote != nil {
+            if selectedNote != nil {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
                         try? modelContext.save()
@@ -578,10 +546,10 @@ private struct ProjectNotesSection: View {
                 }
             } else {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Add note") {
-                        newTitle = ""
-                        newContent = ""
-                        showAddNote = true
+                    Button {
+                        addNote()
+                    } label: {
+                        Label("Add note", systemImage: "square.and.pencil")
                     }
                 }
             }
@@ -589,16 +557,13 @@ private struct ProjectNotesSection: View {
     }
 
     private func addNote() {
-        let content = newContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !content.isEmpty else { return }
-        let title = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        let note = PlanNote(title: title, content: content, project: project)
+        let note = PlanNote(title: "", content: "", project: project)
         modelContext.insert(note)
         project.notes.append(note)
+        note.ensureBlocks(modelContext: modelContext)
         try? modelContext.save()
         streakStore.recordUsage()
-        newTitle = ""
-        newContent = ""
+        selectedNote = note
     }
 
     private func deleteNote(_ note: PlanNote) {
