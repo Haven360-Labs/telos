@@ -318,6 +318,10 @@ private struct NoteBlockRow: View {
         }
     }
 
+    private var showsBlockControls: Bool {
+        isHovering || isFocused || isShowingBlockMenu
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Menu {
@@ -334,7 +338,9 @@ private struct NoteBlockRow: View {
             }
             .menuStyle(.borderlessButton)
             .buttonStyle(.plain)
-            .opacity(isHovering || isShowingBlockMenu ? 1 : 0.35)
+            .opacity(showsBlockControls ? 1 : 0)
+            .allowsHitTesting(showsBlockControls)
+            .animation(.easeOut(duration: 0.12), value: showsBlockControls)
             .help("Block type")
 
             prefix
@@ -441,6 +447,7 @@ private struct BlockTextView: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.font = nsFont
         textView.string = text
+        applyDynamicColors(to: textView)
         textView.commandHandler = context.coordinator.handle
         return textView
     }
@@ -449,11 +456,12 @@ private struct BlockTextView: NSViewRepresentable {
         context.coordinator.parent = self
         textView.commandHandler = context.coordinator.handle
         textView.font = nsFont
-        textView.typingAttributes = [.font: nsFont]
+        applyDynamicColors(to: textView)
 
         if textView.string != text {
             let selection = textView.selectedRange()
             textView.string = text
+            applyDynamicColors(to: textView)
             textView.setSelectedRange(NSRange(location: min(selection.location, text.count), length: 0))
         }
 
@@ -462,6 +470,27 @@ private struct BlockTextView: NSViewRepresentable {
             if isFocused, textView.window?.firstResponder !== textView {
                 textView.window?.makeFirstResponder(textView)
             }
+        }
+    }
+
+    private func applyDynamicColors(to textView: NSTextView) {
+        textView.textColor = .labelColor
+        textView.insertionPointColor = .controlAccentColor
+        textView.selectedTextAttributes = [
+            .backgroundColor: NSColor.selectedTextBackgroundColor,
+            .foregroundColor: NSColor.selectedTextColor,
+        ]
+        textView.typingAttributes = [
+            .font: nsFont,
+            .foregroundColor: NSColor.labelColor,
+        ]
+
+        let fullRange = NSRange(location: 0, length: textView.string.utf16.count)
+        if fullRange.length > 0 {
+            textView.textStorage?.addAttributes([
+                .font: nsFont,
+                .foregroundColor: NSColor.labelColor,
+            ], range: fullRange)
         }
     }
 
