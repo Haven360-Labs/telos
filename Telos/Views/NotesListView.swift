@@ -306,6 +306,7 @@ private struct NoteBlockRow: View {
 
     @State private var height: CGFloat = 28
     @State private var isHovering = false
+    @State private var hoverEndWorkItem: DispatchWorkItem?
 
     private var minHeight: CGFloat {
         block.kind == .heading ? 40 : 28
@@ -376,8 +377,25 @@ private struct NoteBlockRow: View {
                 .frame(width: 190)
             }
         }
-        .onHover { hovering in
-            isHovering = hovering
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onHover(perform: updateHoverState)
+        .onDisappear {
+            hoverEndWorkItem?.cancel()
+        }
+    }
+
+    private func updateHoverState(_ hovering: Bool) {
+        hoverEndWorkItem?.cancel()
+
+        if hovering {
+            isHovering = true
+        } else {
+            let workItem = DispatchWorkItem {
+                isHovering = false
+            }
+            hoverEndWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: workItem)
         }
     }
 
