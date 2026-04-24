@@ -497,9 +497,12 @@ private struct ProjectNotesSection: View {
     var body: some View {
         Group {
             if let note = selectedNote {
-                NotePageEditorView(note: note, modelContext: modelContext, onDismiss: {
-                    selectedNote = nil
-                })
+                NotePageEditorView(
+                    note: note,
+                    modelContext: modelContext,
+                    onDismiss: { selectedNote = nil },
+                    onNewNote: { addNote() }
+                )
             } else {
                 List(selection: $selectedNote) {
                     ForEach(projectNotes) { note in

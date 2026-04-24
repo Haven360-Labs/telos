@@ -14,44 +14,13 @@ struct TelosApp: App {
     }
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            PlanDay.self,
-            PlanTask.self,
-            PlanNote.self,
-            PlanNoteBlock.self,
-            Project.self,
-            ProjectKanbanColumn.self,
-            ProjectKanbanCard.self,
-            ProjectKanbanChecklistItem.self,
-            ProjectSprint.self,
-            ProjectRetrospective.self,
-            ProjectDocument.self,
-            ProjectTheme.self,
-            ProjectEpic.self,
-            ProjectRoadmapItem.self,
-            ProjectDecision.self,
-            ProjectMilestone.self,
-            ProjectRelease.self,
-            ReleaseChecklistItem.self,
-            ProjectIssue.self,
-            ProjectRisk.self,
-            ProjectTestSuite.self,
-            ProjectTestCase.self,
-            ProjectChangelogEntry.self,
-            RetrospectiveEntry.self,
-            Challenge.self,
-            ChallengeDayProgress.self,
-            ChallengeRetrospective.self,
-            FutureTask.self,
-            PlanGoal.self,
-        ])
-        let config = ModelConfiguration(isStoredInMemoryOnly: false)
+        TelosStoreLocation.prepareStoreDirectoryAndMigrateLegacyIfNeeded()
+        // Phase 2 (live sync): add `cloudKitDatabase: .private("iCloud.com.telos.app")` after CloudKit schema exists in the Developer portal.
+        let config = ModelConfiguration(url: TelosStoreLocation.storeURL)
         do {
-            return try ModelContainer(for: schema, configurations: [config])
+            return try ModelContainer(for: TelosModelSchema.schema, configurations: [config])
         } catch {
-            assertionFailure("SwiftData container failed: \(error). Using in-memory store.")
-            let fallbackConfig = ModelConfiguration(isStoredInMemoryOnly: true)
-            return (try? ModelContainer(for: schema, configurations: [fallbackConfig]))!
+            fatalError("SwiftData container failed to open persistent store: \(error)")
         }
     }()
 

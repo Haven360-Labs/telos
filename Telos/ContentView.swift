@@ -108,6 +108,10 @@ struct ContentView: View {
             dayStore.scheduleMorningReminder()
             streakStore.recordUsage()
             dayStore.showEndOfDayReminderIfNeeded(modelContext: modelContext)
+            TelosBackupCoordinator.shared.scheduleLaunchBackup(modelContext: modelContext)
+        }
+        .onReceive(Timer.publish(every: 900, on: .main, in: .common).autoconnect()) { _ in
+            TelosBackupCoordinator.shared.tickPeriodicBackup(modelContext: modelContext)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWorkspace.didWakeNotification)) { _ in
             dayStore.scheduleMorningReminder()
@@ -119,11 +123,13 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 saveModelContextIfNeeded()
+                TelosBackupCoordinator.shared.scheduleBackupAfterPersistence(modelContext: modelContext)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
             timerStore.stopAndRecord(modelContext: modelContext)
             saveModelContextIfNeeded()
+            TelosBackupCoordinator.shared.scheduleBackupAfterPersistence(modelContext: modelContext)
         }
     }
 

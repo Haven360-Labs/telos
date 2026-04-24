@@ -1,5 +1,7 @@
 import SwiftUI
+import SwiftData
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - Notification preferences (UserDefaults)
 enum AppNotificationSettings {
@@ -243,6 +245,8 @@ struct SettingsView: View {
             } footer: {
                 Text("Used as the preselected type when creating new tasks.")
             }
+
+            BackupRecoverySettingsSection()
         }
         .formStyle(.grouped)
         .navigationTitle("Settings")
@@ -294,6 +298,180 @@ struct SettingsView: View {
 }
 
 #Preview {
-    SettingsView()
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: TelosModelSchema.schema, configurations: [config])
+    return SettingsView()
         .environment(DayStore())
+        .modelContainer(container)
+}
+
+// MARK: - Backup & recovery
+
+private struct BackupRecoverySettingsSection: View {
+    @Environment(\.modelContext) private var modelContext
+    @State private var localBackupFolders: [URL] = []
+    @State private var iCloudBackupFolders: [URL] = []
+    @State private var showRestoreLocal = false
+    @State private var showRestoreICloud = false
+    @State private var resultAlertTitle = ""
+    @State private var resultAlertMessage = ""
+    @State private var showResultAlert = false
+
+    private var iCloudAvailable: Bool {
+        TelosBackupCoordinator.shared.iCloudBackupsRoot() != nil
+    }
+
+    var body: some View {
+        Section {
+            Button("Back up now") {
+                do {
+                    try TelosBackupCoordinator.shared.backupNow(modelContext: modelContext)
+                    presentResult(title: "Backup complete", message: "A new backup was saved locally and copied to iCloud if available.")
+                } catch {
+                    presentResult(title: "Backup failed", message: error.localizedDescription)
+                }
+            }
+            Button("Export full backup to file…") {
+                exportFullBackupToFile()
+            }
+            Button("Import full backup from file…") {
+                importFullBackupFromFile()
+            }
+            Button("Restore from local backup…") {
+                localBackupFolders = TelosBackupCoordinator.shared.listLocalBackupFolders()
+                showRestoreLocal = true
+            }
+            Button("Restore from iCloud backup…") {
+                iCloudBackupFolders = TelosBackupCoordinator.shared.listICloudBackupFolders()
+                showRestoreICloud = true
+            }
+            .disabled(!iCloudAvailable)
+            Button("Open backups folder in Finder") {
+                TelosBackupCoordinator.shared.openLocalBackupsFolder()
+            }
+            if !iCloudAvailable {
+                Text("iCloud Drive is unavailable. Sign in to iCloud to mirror backups to Documents/TelosBackups. Local backups still work.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Backup & recovery")
+        } footer: {
+            Text("Keeps up to 7 timestamped backups under Application Support/com.telos.app/Backups (SQLite + JSON). Restoring replaces all current data.")
+        }
+        .sheet(isPresented: $showRestoreLocal) {
+            backupPickerSheet(folders: localBackupFolders, title: "Local backups", isPresented: $showRestoreLocal)
+        }
+        .sheet(isPresented: $showRestoreICloud) {
+            backupPickerSheet(folders: iCloudBackupFolders, title: "iCloud backups", isPresented: $showRestoreICloud)
+        }
+        .alert(resultAlertTitle, isPresented: $showResultAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(resultAlertMessage)
+        }
+    }
+
+    private func presentResult(title: String, message: String) {
+        resultAlertTitle = title
+        resultAlertMessage = message
+        showResultAlert = true
+    }
+
+    private func exportFullBackupToFile() {
+        do {
+            let data = try TelosFullBackup.exportSnapshotJSON(modelContext: modelContext)
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.json]
+            panel.nameFieldStringValue = "telos-backup.json"
+            panel.title = "Export full backup"
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            try data.write(to: url, options: .atomic)
+            presentResult(title: "Export complete", message: "Saved to \(url.path)")
+        } catch {
+            presentResult(title: "Export failed", message: error.localizedDescription)
+        }
+    }
+
+    private func importFullBackupFromFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.title = "Import full backup"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard confirmDestructiveRestore() else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            try TelosFullBackup.importSnapshot(data: data, modelContext: modelContext)
+            presentResult(title: "Import complete", message: "All data was replaced from the backup file.")
+        } catch {
+            presentResult(title: "Import failed", message: error.localizedDescription)
+        }
+    }
+
+    private func confirmDestructiveRestore() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Replace all Telos data?"
+        alert.informativeText = "This removes every plan, project, note, and challenge in the app and replaces them with the backup. This cannot be undone."
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "Replace All Data")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func restore(from folder: URL) {
+        guard confirmDestructiveRestore() else { return }
+        let jsonURL = folder.appendingPathComponent(TelosStoreLocation.snapshotFileName)
+        do {
+            let data = try Data(contentsOf: jsonURL)
+            try TelosFullBackup.importSnapshot(data: data, modelContext: modelContext)
+            presentResult(title: "Restore complete", message: "All data was replaced from the selected backup.")
+        } catch {
+            presentResult(title: "Restore failed", message: error.localizedDescription)
+        }
+    }
+
+    @ViewBuilder
+    private func backupPickerSheet(folders: [URL], title: String, isPresented: Binding<Bool>) -> some View {
+        NavigationStack {
+            List {
+                if folders.isEmpty {
+                    Text("No backups found.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(folders, id: \.path) { folder in
+                        Button {
+                            isPresented.wrappedValue = false
+                            restore(from: folder)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(folder.lastPathComponent)
+                                    .font(.body)
+                                HStack {
+                                    if let exported = TelosBackupCoordinator.readSnapshotExportedAt(folder: folder) {
+                                        Text(exported.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    let bytes = TelosBackupCoordinator.folderByteSize(folder)
+                                    Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { isPresented.wrappedValue = false }
+                }
+            }
+        }
+        .frame(minWidth: 400, minHeight: 320)
+    }
 }

@@ -39,6 +39,10 @@
 		A1000030 /* ProjectHubExpandedSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000030 /* ProjectHubExpandedSections.swift */; };
 		A1000031 /* ProjectBoardNavigationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000031 /* ProjectBoardNavigationStore.swift */; };
 		A1000032 /* PlanTaskProjectLinking.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000032 /* PlanTaskProjectLinking.swift */; };
+		BB000101 /* TelosStoreLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000201 /* TelosStoreLocation.swift */; };
+		BB000102 /* TelosFullBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000202 /* TelosFullBackup.swift */; };
+		BB000103 /* TelosBackupCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000203 /* TelosBackupCoordinator.swift */; };
+		BB000104 /* TelosModelSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000205 /* TelosModelSchema.swift */; };
 		BB47052E2F407BE500092F83 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB47052D2F407BE500092F83 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -76,6 +80,10 @@
 		A2000030 /* ProjectHubExpandedSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectHubExpandedSections.swift; sourceTree = "<group>"; };
 		A2000031 /* ProjectBoardNavigationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectBoardNavigationStore.swift; sourceTree = "<group>"; };
 		A2000032 /* PlanTaskProjectLinking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanTaskProjectLinking.swift; sourceTree = "<group>"; };
+		BB000201 /* TelosStoreLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelosStoreLocation.swift; sourceTree = "<group>"; };
+		BB000202 /* TelosFullBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelosFullBackup.swift; sourceTree = "<group>"; };
+		BB000203 /* TelosBackupCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelosBackupCoordinator.swift; sourceTree = "<group>"; };
+		BB000205 /* TelosModelSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelosModelSchema.swift; sourceTree = "<group>"; };
 		BB47052D2F407BE500092F83 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -141,6 +149,10 @@
 		A4000004 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				BB000205 /* TelosModelSchema.swift */,
+				BB000201 /* TelosStoreLocation.swift */,
+				BB000202 /* TelosFullBackup.swift */,
+				BB000203 /* TelosBackupCoordinator.swift */,
 				A2000005 /* DayStore.swift */,
 				A2000008 /* TimerStore.swift */,
 				A2000031 /* ProjectBoardNavigationStore.swift */,
@@ -266,6 +278,10 @@
 				A1000028 /* ProjectHubView.swift in Sources */,
 				A1000030 /* ProjectHubExpandedSections.swift in Sources */,
 				A1000029 /* KanbanCardDragPayload.swift in Sources */,
+				BB000101 /* TelosStoreLocation.swift in Sources */,
+				BB000102 /* TelosFullBackup.swift in Sources */,
+				BB000103 /* TelosBackupCoordinator.swift in Sources */,
+				BB000104 /* TelosModelSchema.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -329,6 +345,7 @@
 				DEVELOPMENT_TEAM = 9NAY8223BK;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -355,6 +372,7 @@
 				DEVELOPMENT_TEAM = 9NAY8223BK;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

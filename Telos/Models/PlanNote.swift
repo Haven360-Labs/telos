@@ -6,6 +6,7 @@ enum PlanNoteBlockKind: String, CaseIterable, Identifiable {
     case heading
     case bullet
     case checklist
+    case toggleList
 
     var id: String { rawValue }
 
@@ -15,6 +16,7 @@ enum PlanNoteBlockKind: String, CaseIterable, Identifiable {
         case .heading: return "Heading"
         case .bullet: return "Bullet list"
         case .checklist: return "Checklist"
+        case .toggleList: return "Toggle list"
         }
     }
 
@@ -24,6 +26,7 @@ enum PlanNoteBlockKind: String, CaseIterable, Identifiable {
         case .heading: return "textformat.size"
         case .bullet: return "list.bullet"
         case .checklist: return "checklist"
+        case .toggleList: return "chevron.right"
         }
     }
 }
@@ -77,6 +80,29 @@ final class PlanNote {
         }
     }
 
+    /// Top-level blocks only (for Notion-style toggle trees), ordered for editing.
+    var rootBlocks: [PlanNoteBlock] {
+        blocks
+            .filter { $0.parentBlock == nil }
+            .sorted { lhs, rhs in
+                if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+                return lhs.createdAt < rhs.createdAt
+            }
+    }
+
+    /// Depth-first order, including all nested under toggles. Used for export, normalize, and focus.
+    func depthFirstBlocks() -> [PlanNoteBlock] {
+        func walk(_ nodes: [PlanNoteBlock]) -> [PlanNoteBlock] {
+            var result: [PlanNoteBlock] = []
+            for b in nodes {
+                result.append(b)
+                if !b.sortedChildBlocks.isEmpty { result += walk(b.sortedChildBlocks) }
+            }
+            return result
+        }
+        return walk(rootBlocks)
+    }
+
     var exportContent: String {
         blocks.isEmpty ? content : plainTextFromBlocks
     }
@@ -101,8 +127,20 @@ final class PlanNote {
         content = plainTextFromBlocks
     }
 
+    /// Rewrites `sortOrder` to 0…n in depth-first order (matches on-screen block order).
+    func normalizeBlockSortOrder() {
+        for (i, b) in depthFirstBlocks().enumerated() {
+            b.sortOrder = i
+        }
+    }
+
     private var plainTextFromBlocks: String {
-        sortedBlocks.map(\.exportLine).joined(separator: "\n")
+        func walk(_ b: PlanNoteBlock, depth: Int) -> [String] {
+            var out = [b.exportLine(depth: depth)]
+            for c in b.sortedChildBlocks { out += walk(c, depth: depth + 1) }
+            return out
+        }
+        return rootBlocks.flatMap { walk($0, depth: 0) }.joined(separator: "\n")
     }
 }
 
@@ -114,6 +152,10 @@ final class PlanNoteBlock {
     var isChecked: Bool
     var createdAt: Date
     var note: PlanNote?
+    var parentBlock: PlanNoteBlock?
+
+    @Relationship(deleteRule: .cascade, inverse: \PlanNoteBlock.parentBlock)
+    var childBlocks: [PlanNoteBlock] = []
 
     init(
         kind: PlanNoteBlockKind = .paragraph,
@@ -121,7 +163,8 @@ final class PlanNoteBlock {
         sortOrder: Int = 0,
         isChecked: Bool = false,
         createdAt: Date = Date(),
-        note: PlanNote? = nil
+        note: PlanNote? = nil,
+        parentBlock: PlanNoteBlock? = nil
     ) {
         self.kindRawValue = kind.rawValue
         self.text = text
@@ -129,6 +172,7 @@ final class PlanNoteBlock {
         self.isChecked = isChecked
         self.createdAt = createdAt
         self.note = note
+        self.parentBlock = parentBlock
     }
 
     var kind: PlanNoteBlockKind {
@@ -136,17 +180,32 @@ final class PlanNoteBlock {
         set { kindRawValue = newValue.rawValue }
     }
 
-    var exportLine: String {
+    /// - Parameter depth: Nesting under toggles (0 = top level).
+    func exportLine(depth: Int) -> String {
+        let ind = String(repeating: "  ", count: depth)
+        let body: String
         switch kind {
         case .paragraph:
-            return text
+            body = text
         case .heading:
-            return text.isEmpty ? "" : "# \(text)"
+            body = text.isEmpty ? "" : "# \(text)"
         case .bullet:
-            return text.isEmpty ? "- " : "- \(text)"
+            body = text.isEmpty ? "- " : "- \(text)"
         case .checklist:
             let marker = isChecked ? "[x]" : "[ ]"
-            return text.isEmpty ? "- \(marker)" : "- \(marker) \(text)"
+            body = text.isEmpty ? "- \(marker)" : "- \(marker) \(text)"
+        case .toggleList:
+            // `isChecked` == expanded in the editor. Children always follow in the exported tree.
+            let ch = isChecked ? "▾" : "▸"
+            body = text.isEmpty ? ch : "\(ch) \(text)"
+        }
+        return ind + body
+    }
+
+    var sortedChildBlocks: [PlanNoteBlock] {
+        childBlocks.sorted { lhs, rhs in
+            if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+            return lhs.createdAt < rhs.createdAt
         }
     }
 }
