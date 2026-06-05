@@ -4,6 +4,19 @@ A native macOS menu bar app for day planning, time tracking, and reflection. Bui
 
 Telos helps knowledge workers start each day with a clear plan, focus on one task at a time, and review what got done—all without accounts, sync setup, or leaving the menu bar.
 
+## Official vs community build
+
+Telos is open source. You can build and run it from this repository today.
+
+| | **Official Telos** (planned) | **Community build** (available now) |
+|---|-------------------------------|-------------------------------------|
+| Status | Mac App Store release **not yet available** | Build from source or [GitHub Releases](https://github.com/Haven360-Labs/telos2/releases) |
+| iCloud sync | Planned for official builds | Not available unless you configure your own Apple Developer setup |
+| Support | Haven360 Labs (when shipped) | Community / best-effort |
+| Trademark | Official **Telos** name and branding | Must use a [distinct name and icon](TRADEMARK.md) for forks |
+
+Community builds are welcome under the [MIT License](LICENSE). They must follow our [trademark guidelines](TRADEMARK.md) and are not affiliated with Haven360 Labs.
+
 ## Features
 
 ### Daily planning
@@ -81,6 +94,16 @@ open ~/Library/Developer/Xcode/DerivedData/
 
 On first launch, macOS may prompt for notification permission (morning and end-of-day reminders).
 
+## Releases
+
+Tagged versions are published on [GitHub Releases](https://github.com/Haven360-Labs/telos2/releases). Check out a tag to build a specific version:
+
+```bash
+git checkout v0.1.0   # example
+```
+
+When an official Mac App Store build ships, release tags will align with App Store version numbers where possible.
+
 ## Project structure
 
 ```
@@ -98,9 +121,10 @@ Design notes and the original product spec live in [`docs/PRD-day-planning-app-r
 
 ## Contributing
 
-Contributions are welcome. Please open an issue to discuss larger changes before submitting a pull request.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b your-branch`)
-3. Ensure the app builds: `xcodebuild -scheme Telos -configuration Debug build`
-4. Open a pull request with a clear description of the change
+## Legal
+
+- [License (MIT)](LICENSE)
+- [Trademark guidelines](TRADEMARK.md)
+- [Privacy policy](PRIVACY.md)
