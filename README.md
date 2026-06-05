@@ -4,19 +4,6 @@ A native macOS menu bar app for day planning, time tracking, and reflection. Bui
 
 Telos helps knowledge workers start each day with a clear plan, focus on one task at a time, and review what got done—all without accounts, sync setup, or leaving the menu bar.
 
-## Official vs community build
-
-Telos is open source. Download the latest **DMG** from [GitHub Releases](https://github.com/Haven360-Labs/telos/releases), or build from source (see [Developer guide](#developer-guide)).
-
-| | **Official Telos** (planned) | **Community build** (available now) |
-|---|-------------------------------|-------------------------------------|
-| Status | Mac App Store release **not yet available** | Download **`.dmg`** from [GitHub Releases](https://github.com/Haven360-Labs/telos/releases) or build from source |
-| iCloud sync | Planned for official builds | Not available unless you configure your own Apple Developer setup |
-| Support | Haven360 Labs (when shipped) | Community / best-effort |
-| Trademark | Official **Telos** name and branding | Must use a [distinct name and icon](TRADEMARK.md) for forks |
-
-Community builds are welcome under the [MIT License](LICENSE). They must follow our [trademark guidelines](TRADEMARK.md) and are not affiliated with Haven360 Labs.
-
 ## Features
 
 ### Daily planning
