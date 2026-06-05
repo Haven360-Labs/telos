@@ -6,11 +6,11 @@ Telos helps knowledge workers start each day with a clear plan, focus on one tas
 
 ## Official vs community build
 
-Telos is open source. You can build and run it from this repository today.
+Telos is open source. Download the latest **DMG** from [GitHub Releases](https://github.com/Haven360-Labs/telos/releases), or build from source (see [Developer guide](#developer-guide)).
 
 | | **Official Telos** (planned) | **Community build** (available now) |
 |---|-------------------------------|-------------------------------------|
-| Status | Mac App Store release **not yet available** | Build from source or [GitHub Releases](https://github.com/Haven360-Labs/telos2/releases) |
+| Status | Mac App Store release **not yet available** | Download **`.dmg`** from [GitHub Releases](https://github.com/Haven360-Labs/telos/releases) or build from source |
 | iCloud sync | Planned for official builds | Not available unless you configure your own Apple Developer setup |
 | Support | Haven360 Labs (when shipped) | Community / best-effort |
 | Trademark | Official **Telos** name and branding | Must use a [distinct name and icon](TRADEMARK.md) for forks |
@@ -96,10 +96,44 @@ On first launch, macOS may prompt for notification permission (morning and end-o
 
 ## Releases
 
-Tagged versions are published on [GitHub Releases](https://github.com/Haven360-Labs/telos2/releases). Check out a tag to build a specific version:
+Download **`Telos-1.0.0.dmg`** (and future versions) from [GitHub Releases](https://github.com/Haven360-Labs/telos/releases).
+
+1. Open the DMG and drag **Telos** to **Applications**
+2. Open **Telos** from Applications (or Spotlight)
+
+On first launch, macOS may prompt for **notification** permission (morning and end-of-day reminders).
+
+### If macOS blocks Telos (“cannot check for malicious software”)
+
+Community builds from GitHub are not notarized yet, so Gatekeeper may refuse the first launch. You can allow Telos safely as follows.
+
+**Option A — Right-click Open (simplest)**
+
+1. In **Finder**, open **Applications**
+2. **Control-click** (or right-click) **Telos**
+3. Choose **Open**
+4. In the dialog, click **Open** again
+
+You only need to do this once.
+
+**Option B — Privacy & Security**
+
+Use this if double-clicking shows a block message and there is no Open in the right-click menu:
+
+1. Try to open **Telos** once (macOS will block it)
+2. Open **System Settings** → **Privacy & Security**
+3. Scroll to the **Security** section at the bottom
+4. Next to the message about Telos being blocked, click **Open Anyway**
+5. Confirm with your password or Touch ID, then click **Open** in the final prompt
+
+If **Open Anyway** does not appear, use Option A, or ensure you attempted to launch Telos at least once before checking Settings.
+
+An official **Mac App Store** release will not require these steps.
+
+To build a specific tag from source:
 
 ```bash
-git checkout v0.1.0   # example
+git checkout v1.0.0   # example
 ```
 
 When an official Mac App Store build ships, release tags will align with App Store version numbers where possible.

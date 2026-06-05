@@ -6,7 +6,7 @@ The Telos source code is released under the [MIT License](LICENSE). The MIT Lice
 
 ## Official Telos
 
-**Haven360 Labs** is the steward of the Telos project. An **official Telos** app (Mac App Store distribution, iCloud sync, and supported updates) is planned but **not yet available**. Until then, the supported way to run Telos is to build from this repository or install a release published by Haven360 Labs on [GitHub Releases](https://github.com/Haven360-Labs/telos2/releases).
+**Haven360 Labs** is the steward of the Telos project. An **official Telos** app (Mac App Store distribution, iCloud sync, and supported updates) is planned but **not yet available**. Until then, the supported way to run Telos is to build from this repository or install a release published by Haven360 Labs on [GitHub Releases](https://github.com/Haven360-Labs/telos/releases).
 
 ## Permitted uses
 
@@ -35,4 +35,4 @@ If you distribute a modified version of this repository:
 
 ## Questions
 
-Open a [GitHub issue](https://github.com/Haven360-Labs/telos2/issues) for trademark questions.
+Open a [GitHub issue](https://github.com/Haven360-Labs/telos/issues) for trademark questions.

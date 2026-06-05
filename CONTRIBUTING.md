@@ -13,8 +13,8 @@ Thank you for helping improve Telos. This project is open source under the [MIT 
 Requirements: macOS 14+, Xcode 15+.
 
 ```bash
-git clone https://github.com/Haven360-Labs/telos2.git
-cd telos2
+git clone https://github.com/Haven360-Labs/telos.git
+cd telos
 open Telos.xcodeproj
 ```
 
@@ -42,7 +42,7 @@ See the [Developer guide](README.md#developer-guide) in the README for running t
 
 ## Releases (maintainers)
 
-Version tags are published on [GitHub Releases](https://github.com/Haven360-Labs/telos2/releases) when we cut a release:
+Version tags are published on [GitHub Releases](https://github.com/Haven360-Labs/telos/releases) when we cut a release:
 
 ```bash
 git tag v0.1.0
@@ -55,8 +55,8 @@ Attaching a built `.app` or `.dmg` to a release is optional until notarized dist
 
 ## Security
 
-If you find a security issue, please **do not** open a public issue. Report it privately via GitHub [Security Advisories](https://github.com/Haven360-Labs/telos2/security/advisories/new) if enabled, or contact the maintainers through a private channel listed on the repository.
+If you find a security issue, please **do not** open a public issue. Report it privately via GitHub [Security Advisories](https://github.com/Haven360-Labs/telos/security/advisories/new) if enabled, or contact the maintainers through a private channel listed on the repository.
 
 ## Questions
 
-Open a [GitHub issue](https://github.com/Haven360-Labs/telos2/issues) for bugs, features, and general questions.
+Open a [GitHub issue](https://github.com/Haven360-Labs/telos/issues) for bugs, features, and general questions.

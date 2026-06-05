@@ -71,7 +71,7 @@ We may update this policy. We will revise the “Effective date” above and not
 
 ## Contact
 
-Questions about this policy: open a [GitHub issue](https://github.com/Haven360-Labs/telos2/issues) or contact Haven360 Labs through the repository.
+Questions about this policy: open a [GitHub issue](https://github.com/Haven360-Labs/telos/issues) or contact Haven360 Labs through the repository.
 
 ---
 
