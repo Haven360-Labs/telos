@@ -326,7 +326,7 @@ struct NotePageEditorView: View {
     }
 
     private func splitBlock(_ block: PlanNoteBlock, at cursor: Int) {
-        var newBlockID: PersistentIdentifier?
+        var createdBlock: PlanNoteBlock?
         performUndoableChange("Split Block") {
             let nsText = block.text as NSString
             let offset = max(0, min(cursor, nsText.length))
@@ -343,10 +343,13 @@ struct NotePageEditorView: View {
             modelContext.insert(newBlock)
             note.blocks.append(newBlock)
             note.normalizeBlockSortOrder()
-            newBlockID = newBlock.persistentModelID
+            createdBlock = newBlock
         }
-        if let newBlockID {
-            focusedBlockID = newBlockID
+        // Read the identifier AFTER performUndoableChange saves the context, since a
+        // freshly inserted SwiftData model's persistentModelID is temporary until save
+        // and is then replaced by a permanent one that the row views compare against.
+        if let createdBlock {
+            focusedBlockID = createdBlock.persistentModelID
             focusGeneration &+= 1
         }
     }
@@ -374,7 +377,7 @@ struct NotePageEditorView: View {
     }
 
     private func appendBlockAtEnd() {
-        var newBlockID: PersistentIdentifier?
+        var createdBlock: PlanNoteBlock?
         performUndoableChange("Add Block") {
             let newBlock = PlanNoteBlock(
                 kind: .paragraph,
@@ -386,10 +389,12 @@ struct NotePageEditorView: View {
             modelContext.insert(newBlock)
             note.blocks.append(newBlock)
             note.normalizeBlockSortOrder()
-            newBlockID = newBlock.persistentModelID
+            createdBlock = newBlock
         }
-        if let newBlockID {
-            focusedBlockID = newBlockID
+        // Read the identifier AFTER the context is saved so we use the permanent
+        // persistentModelID rather than the temporary one assigned before insert/save.
+        if let createdBlock {
+            focusedBlockID = createdBlock.persistentModelID
             focusGeneration &+= 1
         }
     }
@@ -704,6 +709,20 @@ private struct BlockTextView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
+    }
+
+    static func dismantleNSView(_ nsView: BlockNSTextView, coordinator: Coordinator) {
+        // When a block is removed (e.g. undoing an added/split block) its text view is torn
+        // down. Drop any native text-editing undo actions targeting it before it deallocates
+        // so the shared undo manager can't later invoke a dangling target (EXC_BAD_ACCESS).
+        let manager = nsView.sharedUndoManager
+        manager?.removeAllActions(withTarget: nsView)
+        if let storage = nsView.textStorage {
+            manager?.removeAllActions(withTarget: storage)
+        }
+        nsView.onWidthForLayoutChange = nil
+        nsView.onBecameFirstResponder = nil
+        nsView.commandHandler = nil
     }
 
     func makeNSView(context: Context) -> BlockNSTextView {

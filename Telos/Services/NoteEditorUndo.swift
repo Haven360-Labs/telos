@@ -40,38 +40,67 @@ struct NoteEditorSnapshot: Equatable {
     func apply(to note: PlanNote, modelContext: ModelContext) -> PersistentIdentifier? {
         note.title = title
 
-        for block in Array(note.blocks) {
-            modelContext.delete(block)
-        }
-        note.blocks.removeAll()
+        // Reconcile in place rather than deleting and recreating every block.
+        // Mass delete-and-recreate churned object identity on each undo, double-deleted
+        // cascade children (childBlocks uses deleteRule .cascade), and left the bound
+        // SwiftUI views / NSTextViews referencing freed objects — causing EXC_BAD_ACCESS
+        // after repeated undos. Reusing existing blocks positionally keeps their persistent
+        // identities (and views) stable. Both the snapshot and `depthFirstBlocks()` are in
+        // depth-first order, so positions line up and parents always precede their children.
+        let current = note.depthFirstBlocks()
 
-        var created: [PlanNoteBlock] = []
-        for snapshot in blocks {
-            let block = PlanNoteBlock(
-                kind: snapshot.kind,
-                text: snapshot.text,
-                sortOrder: snapshot.sortOrder,
-                isChecked: snapshot.isChecked,
-                note: note
-            )
-            modelContext.insert(block)
-            note.blocks.append(block)
-            created.append(block)
+        var reconciled: [PlanNoteBlock] = []
+        reconciled.reserveCapacity(blocks.count)
+
+        for (index, snapshot) in blocks.enumerated() {
+            let block: PlanNoteBlock
+            if index < current.count {
+                block = current[index]
+            } else {
+                block = PlanNoteBlock(
+                    kind: snapshot.kind,
+                    text: snapshot.text,
+                    sortOrder: snapshot.sortOrder,
+                    isChecked: snapshot.isChecked,
+                    note: note
+                )
+                modelContext.insert(block)
+                note.blocks.append(block)
+            }
+            block.kind = snapshot.kind
+            block.text = snapshot.text
+            block.sortOrder = snapshot.sortOrder
+            block.isChecked = snapshot.isChecked
+            reconciled.append(block)
         }
 
-        for (index, snapshot) in blocks.enumerated() where index < created.count {
-            if let parentIndex = snapshot.parentIndex, parentIndex < created.count {
-                created[index].parentBlock = created[parentIndex]
+        // Re-link parent relationships by index (parents precede children in depth-first order).
+        for (index, snapshot) in blocks.enumerated() {
+            if let parentIndex = snapshot.parentIndex, parentIndex < reconciled.count {
+                reconciled[index].parentBlock = reconciled[parentIndex]
+            } else {
+                reconciled[index].parentBlock = nil
+            }
+        }
+
+        // Delete blocks that no longer exist in the snapshot. Detach them first so a
+        // cascade delete can never target an already-removed object.
+        if current.count > blocks.count {
+            let extras = Array(current[blocks.count...])
+            for block in extras { block.parentBlock = nil }
+            for block in extras {
+                note.blocks.removeAll { $0.persistentModelID == block.persistentModelID }
+                modelContext.delete(block)
             }
         }
 
         note.normalizeBlockSortOrder()
         note.rebuildContentCache()
 
-        if let focusBlockIndex, focusBlockIndex < created.count {
-            return created[focusBlockIndex].persistentModelID
+        if let focusBlockIndex, focusBlockIndex < reconciled.count {
+            return reconciled[focusBlockIndex].persistentModelID
         }
-        return created.first?.persistentModelID
+        return reconciled.first?.persistentModelID
     }
 }
 
