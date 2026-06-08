@@ -180,6 +180,11 @@ struct MenuBarView: View {
            let task = modelContext.model(for: id) as? PlanTask {
             task.isCompleted = true
             try? modelContext.save()
+            PlanTaskProjectLinking.syncBoardFromTodayCompletion(
+                task: task,
+                modelContext: modelContext,
+                timerStore: timerStore
+            )
         }
         streakStore.recordUsage()
     }

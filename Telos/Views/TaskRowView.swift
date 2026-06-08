@@ -45,10 +45,7 @@ struct TaskRowView: View {
     }
 
     private func projectLinkedToTask(_ task: PlanTask) -> Project? {
-        guard let card = task.linkedKanbanCard,
-              card.column?.sprint == nil,
-              let project = card.column?.project else { return nil }
-        return project
+        PlanTaskProjectLinking.boardSourceProject(for: task)
     }
 
     var body: some View {
@@ -58,10 +55,7 @@ struct TaskRowView: View {
                     if !task.isCompleted && hasIncompleteSubtasks {
                         showCompleteSubtasksAlert = true
                     } else {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            task.isCompleted.toggle()
-                        }
-                        try? modelContext.save()
+                        toggleTaskCompletion()
                     }
                 } label: {
                     Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -155,16 +149,13 @@ struct TaskRowView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if let card = task.linkedKanbanCard {
-                        Button {
-                            projectBoardNavigation.openBoard(for: card)
-                        } label: {
-                            Image(systemName: "rectangle.split.3x1")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Open this task on the project board")
+                    if let card = task.linkedKanbanCard,
+                       let sourceLabel = PlanTaskProjectLinking.boardSourceLabel(for: task) {
+                        ProjectBoardSourceBadge(
+                            card: card,
+                            sourceLabel: sourceLabel,
+                            onOpen: { projectBoardNavigation.openBoard(for: card) }
+                        )
                     }
 
                     Spacer()
@@ -426,6 +417,22 @@ struct TaskRowView: View {
         }
     }
 
+    private func toggleTaskCompletion() {
+        let markingComplete = !task.isCompleted
+        withAnimation(.easeInOut(duration: 0.2)) {
+            task.isCompleted.toggle()
+        }
+        if markingComplete {
+            timerStore.stopIfActive(task: task, modelContext: modelContext)
+        }
+        try? modelContext.save()
+        PlanTaskProjectLinking.syncBoardFromTodayCompletion(
+            task: task,
+            modelContext: modelContext,
+            timerStore: timerStore
+        )
+    }
+
     private func commitTitleEdit() {
         guard isEditingTitle else { return }
         let trimmed = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -518,6 +525,50 @@ struct TaskRowView: View {
         try? modelContext.save()
         newSubtaskTitle = ""
         isAddingSubtask = false
+    }
+}
+
+// MARK: - Project board source (Today row)
+
+/// Shows project/sprint source and live kanban column status for a board-linked today task.
+private struct ProjectBoardSourceBadge: View {
+    @Bindable var card: ProjectKanbanCard
+    let sourceLabel: String
+    let onOpen: () -> Void
+
+    private var columnStatus: String? {
+        PlanTaskProjectLinking.boardColumnStatus(for: card)
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(action: onOpen) {
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .font(.caption2)
+                    Text(sourceLabel)
+                        .font(.caption)
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+            .help("Open this task on the project board")
+
+            if let status = columnStatus {
+                Text(status)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(PlanTaskProjectLinking.boardColumnStatusColor(for: status))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quaternary.opacity(0.8), in: RoundedRectangle(cornerRadius: 4))
+                    .help("Board status")
+            }
+        }
     }
 }
 

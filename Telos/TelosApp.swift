@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import AppKit
 
 @main
 struct TelosApp: App {
@@ -8,6 +9,7 @@ struct TelosApp: App {
     @State private var timerStore = TimerStore()
     @State private var streakStore = StreakStore()
     @State private var projectBoardNavigation = ProjectBoardNavigationStore()
+    @State private var noteEditingSession = NoteEditingSession()
 
     init() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
@@ -31,10 +33,32 @@ struct TelosApp: App {
                 .environment(timerStore)
                 .environment(streakStore)
                 .environment(projectBoardNavigation)
+                .environment(noteEditingSession)
         }
         .modelContainer(sharedModelContainer)
         .commands {
             CommandGroup(replacing: .newItem) { }
+            CommandGroup(replacing: .undoRedo) {
+                Button("Undo") {
+                    if noteEditingSession.handlesUndoRedo {
+                        noteEditingSession.undo()
+                    } else {
+                        NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+                    }
+                }
+                .keyboardShortcut("z", modifiers: .command)
+                .disabled(noteEditingSession.handlesUndoRedo && !noteEditingSession.canUndo)
+
+                Button("Redo") {
+                    if noteEditingSession.handlesUndoRedo {
+                        noteEditingSession.redo()
+                    } else {
+                        NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
+                    }
+                }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+                .disabled(noteEditingSession.handlesUndoRedo && !noteEditingSession.canRedo)
+            }
         }
     }
 }

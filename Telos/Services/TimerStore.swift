@@ -219,6 +219,12 @@ final class TimerStore {
         return task.persistentModelID == id
     }
 
+    /// Stops the timer and records elapsed time when `task` is the active timed task.
+    func stopIfActive(task: PlanTask, modelContext: ModelContext) {
+        guard isActive(task: task) else { return }
+        stopAndRecord(modelContext: modelContext)
+    }
+
     /// When the task was created from "Make task" on a challenge, record elapsed time on that challenge's day progress.
     private func recordElapsedOnChallengeDay(task: PlanTask, elapsed: TimeInterval, modelContext: ModelContext) {
         guard let challenge = task.linkedChallenge, elapsed > 0 else { return }

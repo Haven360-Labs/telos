@@ -12,6 +12,8 @@ struct KanbanCardDetailForm: View {
     var modelContext: ModelContext
     var streakStore: StreakStore
 
+    @Environment(DayStore.self) private var dayStore
+    @Environment(TimerStore.self) private var timerStore
     @State private var newChecklistTitle = ""
 
     private var sortedMilestones: [ProjectMilestone] {
@@ -48,7 +50,8 @@ struct KanbanCardDetailForm: View {
                                     dragged: card,
                                     targetColumn: newCol,
                                     before: nil,
-                                    modelContext: modelContext
+                                    modelContext: modelContext,
+                                    timerStore: timerStore
                                 )
                                 streakStore.recordUsage()
                             }
@@ -67,6 +70,23 @@ struct KanbanCardDetailForm: View {
                         ForEach(sortedMilestones) { m in
                             Text(m.title.isEmpty ? "Milestone" : m.title).tag(m as ProjectMilestone?)
                         }
+                    }
+                }
+            }
+            Section("Today") {
+                if PlanTaskProjectLinking.isKanbanCardOnToday(card, dayStore: dayStore, modelContext: modelContext) {
+                    Label("On Today's list", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button {
+                        PlanTaskProjectLinking.ensureTodayPlanTask(
+                            for: card,
+                            dayStore: dayStore,
+                            modelContext: modelContext,
+                            streakStore: streakStore
+                        )
+                    } label: {
+                        Label("Add to Today", systemImage: "sun.max")
                     }
                 }
             }
@@ -630,6 +650,7 @@ struct ProjectBoardTaskListSection: View {
     var modelContext: ModelContext
     var streakStore: StreakStore
 
+    @Environment(DayStore.self) private var dayStore
     @State private var selected: ProjectKanbanCard?
     @State private var filterColumn: ProjectKanbanColumn?
     @State private var showAdd = false
@@ -679,8 +700,16 @@ struct ProjectBoardTaskListSection: View {
                     List(selection: $selected) {
                         ForEach(visibleCards) { row in
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(row.title.isEmpty ? "Untitled" : row.title)
-                                    .font(.headline)
+                                HStack(spacing: 8) {
+                                    Text(row.title.isEmpty ? "Untitled" : row.title)
+                                        .font(.headline)
+                                    if PlanTaskProjectLinking.isKanbanCardOnToday(row, dayStore: dayStore, modelContext: modelContext) {
+                                        Image(systemName: "sun.max.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                            .help("On Today's list")
+                                    }
+                                }
                                 if let col = row.column {
                                     Text(col.title)
                                         .font(.caption)
@@ -693,6 +722,25 @@ struct ProjectBoardTaskListSection: View {
                                 }
                             }
                             .tag(row)
+                            .contextMenu {
+                                if PlanTaskProjectLinking.isKanbanCardOnToday(row, dayStore: dayStore, modelContext: modelContext) {
+                                    Button {} label: {
+                                        Label("On Today's list", systemImage: "checkmark")
+                                    }
+                                    .disabled(true)
+                                } else {
+                                    Button {
+                                        PlanTaskProjectLinking.ensureTodayPlanTask(
+                                            for: row,
+                                            dayStore: dayStore,
+                                            modelContext: modelContext,
+                                            streakStore: streakStore
+                                        )
+                                    } label: {
+                                        Label("Add to Today", systemImage: "sun.max")
+                                    }
+                                }
+                            }
                         }
                         .onDelete(perform: deleteAt)
                     }

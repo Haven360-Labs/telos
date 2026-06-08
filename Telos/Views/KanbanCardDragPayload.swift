@@ -35,7 +35,8 @@ enum KanbanBoardDragSupport {
         dragged: ProjectKanbanCard,
         targetColumn: ProjectKanbanColumn,
         before targetCard: ProjectKanbanCard?,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        timerStore: TimerStore? = nil
     ) {
         if let target = targetCard, target.persistentModelID == dragged.persistentModelID { return }
 
@@ -66,5 +67,12 @@ enum KanbanBoardDragSupport {
         }
 
         try? modelContext.save()
+        PlanTaskProjectLinking.syncTodayFromBoardMove(
+            card: dragged,
+            from: oldColumn,
+            to: targetColumn,
+            modelContext: modelContext,
+            timerStore: timerStore
+        )
     }
 }

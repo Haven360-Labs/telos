@@ -105,6 +105,7 @@ struct ContentView: View {
                 modelContainer: modelContext.container
             )
             dayStore.ensureTodayExists(modelContext: modelContext)
+            ProjectBoardDefaults.migrateLegacyColumnTitles(modelContext: modelContext)
             dayStore.scheduleMorningReminder()
             streakStore.recordUsage()
             dayStore.showEndOfDayReminderIfNeeded(modelContext: modelContext)
@@ -613,6 +614,11 @@ struct DayPlanView: View {
                        let task = modelContext.model(for: id) as? PlanTask {
                         task.isCompleted = true
                         try? modelContext.save()
+                        PlanTaskProjectLinking.syncBoardFromTodayCompletion(
+                            task: task,
+                            modelContext: modelContext,
+                            timerStore: timerStore
+                        )
                     }
                     streakStore.recordUsage()
                 }

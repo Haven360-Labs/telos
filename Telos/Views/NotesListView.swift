@@ -148,14 +148,18 @@ private struct NoteNewNoteFloatingButton: View {
 }
 
 struct NotePageEditorView: View {
+    @Environment(NoteEditingSession.self) private var noteEditingSession
     @Bindable var note: PlanNote
     var modelContext: ModelContext
     var onDismiss: () -> Void
-    /// When set, shows a floating control to create another note (parent switches selection).
     var onNewNote: (() -> Void)? = nil
 
+    @State private var undoController = NoteUndoController()
     @State private var focusedBlockID: PersistentIdentifier?
     @State private var slashMenuBlockID: PersistentIdentifier?
+    @State private var titleWhenFocused: String?
+    /// Bumped each time we programmatically move focus so updateNSView re-evaluates.
+    @State private var focusGeneration: UInt = 0
     @FocusState private var isTitleFieldFocused: Bool
 
     private var shouldStartEditingInTitle: Bool {
@@ -181,21 +185,22 @@ struct NotePageEditorView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    // VStack (not LazyVStack): when a block’s height changes, a lazy stack can leave
-                    // the following block at the old position, so the two draw on top of each other.
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(note.rootBlocks) { block in
                             NoteBlockSubtree(
                                 block: block,
                                 depth: 0,
                                 focusedBlockID: focusedBlockID,
+                                focusGeneration: focusGeneration,
                                 slashMenuBlockID: slashMenuBlockID,
+                                undoManager: undoController.undoManager,
                                 onFocus: { id in
-                                    focusedBlockID = id
                                     isTitleFieldFocused = false
+                                    focusedBlockID = id
                                 },
                                 onSlashMenuChange: { slashMenuBlockID = $0 },
                                 onTextChanged: saveNoteChange,
+                                onUndoableChange: performUndoableChange,
                                 onSplit: splitBlock,
                                 onBackspaceEmpty: deleteEmptyBlock,
                                 onSlashForBlock: { b in slashMenuBlockID = b.persistentModelID },
@@ -236,26 +241,75 @@ struct NotePageEditorView: View {
         }
         .onAppear {
             prepareBlocks()
+            undoController.configure(note: note, modelContext: modelContext)
+            undoController.onFocusChange = { id in
+                guard let id else { return }
+                focusedBlockID = id
+                focusGeneration &+= 1
+            }
+            undoController.reset()
+            noteEditingSession.activate(undoController)
+            syncUndoMenuState()
             if shouldStartEditingInTitle {
                 DispatchQueue.main.async { isTitleFieldFocused = true }
             }
         }
+        .onChange(of: undoController.canUndo) { _, _ in syncUndoMenuState() }
+        .onChange(of: undoController.canRedo) { _, _ in syncUndoMenuState() }
         .onChange(of: isTitleFieldFocused) { _, focused in
-            if focused { focusedBlockID = nil }
+            if focused {
+                focusedBlockID = nil
+                titleWhenFocused = note.title
+            } else if let titleWhenFocused, titleWhenFocused != note.title {
+                registerTitleUndo(from: titleWhenFocused, to: note.title)
+            }
+            if !focused {
+                self.titleWhenFocused = nil
+            }
+            syncUndoMenuState()
         }
         .onChange(of: focusedBlockID) { _, newID in
             if newID != nil { isTitleFieldFocused = false }
+            syncUndoMenuState()
         }
         .onDisappear {
+            noteEditingSession.deactivate()
             note.rebuildContentCache()
             try? modelContext.save()
         }
+    }
+
+    private func syncUndoMenuState() {
+        noteEditingSession.sync(from: undoController)
+        noteEditingSession.noteKeyboardFocused = focusedBlockID != nil || isTitleFieldFocused
+    }
+
+    private func registerTitleUndo(from beforeTitle: String, to afterTitle: String) {
+        guard beforeTitle != afterTitle else { return }
+        let focusID = focusedBlockID
+        var beforeSnapshot = NoteEditorSnapshot.capture(from: note, focusBlockID: focusID)
+        beforeSnapshot.title = beforeTitle
+        var afterSnapshot = beforeSnapshot
+        afterSnapshot.title = afterTitle
+        undoController.registerChange(actionName: "Edit Title", before: beforeSnapshot, after: afterSnapshot)
+        syncUndoMenuState()
+    }
+
+    private func performUndoableChange(_ actionName: String, _ operation: () -> Void) {
+        let before = NoteEditorSnapshot.capture(from: note, focusBlockID: focusedBlockID)
+        operation()
+        let after = NoteEditorSnapshot.capture(from: note, focusBlockID: focusedBlockID)
+        undoController.registerChange(actionName: actionName, before: before, after: after)
+        note.rebuildContentCache()
+        try? modelContext.save()
+        syncUndoMenuState()
     }
 
     private func moveFocusToFirstBlockIfPossible() {
         guard let first = note.rootBlocks.first else { return }
         isTitleFieldFocused = false
         focusedBlockID = first.persistentModelID
+        focusGeneration &+= 1
     }
 
     private func prepareBlocks() {
@@ -272,40 +326,72 @@ struct NotePageEditorView: View {
     }
 
     private func splitBlock(_ block: PlanNoteBlock, at cursor: Int) {
-        let text = block.text
-        let offset = max(0, min(cursor, text.count))
-        let splitIndex = text.index(text.startIndex, offsetBy: offset)
-        let before = String(text[..<splitIndex])
-        let after = String(text[splitIndex...])
-        let newKind: PlanNoteBlockKind
-        if block.kind == .heading { newKind = .paragraph } else if block.kind == .toggleList { newKind = .paragraph } else { newKind = block.kind }
+        var newBlockID: PersistentIdentifier?
+        performUndoableChange("Split Block") {
+            let nsText = block.text as NSString
+            let offset = max(0, min(cursor, nsText.length))
+            let before = nsText.substring(to: offset)
+            let after = nsText.substring(from: offset)
+            let newKind: PlanNoteBlockKind
+            if block.kind == .heading { newKind = .paragraph } else if block.kind == .toggleList { newKind = .paragraph } else { newKind = block.kind }
 
-        block.text = before
-        if block.kind == .toggleList { block.isChecked = true }
+            block.text = before
+            if block.kind == .toggleList { block.isChecked = true }
 
-        let newBlock = PlanNoteBlock(kind: newKind, text: after, sortOrder: 0, note: note)
-        if block.kind == .toggleList { newBlock.parentBlock = block } else { newBlock.parentBlock = block.parentBlock }
-        modelContext.insert(newBlock)
-        note.blocks.append(newBlock)
-        note.normalizeBlockSortOrder()
-        note.rebuildContentCache()
-        try? modelContext.save()
-        focusedBlockID = newBlock.persistentModelID
+            let newBlock = PlanNoteBlock(kind: newKind, text: after, sortOrder: 0, note: note)
+            insertSplitBlock(newBlock, after: block)
+            modelContext.insert(newBlock)
+            note.blocks.append(newBlock)
+            note.normalizeBlockSortOrder()
+            newBlockID = newBlock.persistentModelID
+        }
+        if let newBlockID {
+            focusedBlockID = newBlockID
+            focusGeneration &+= 1
+        }
+    }
+
+    private func insertSplitBlock(_ newBlock: PlanNoteBlock, after block: PlanNoteBlock) {
+        if block.kind == .toggleList {
+            newBlock.parentBlock = block
+            for child in block.sortedChildBlocks {
+                child.sortOrder += 1
+            }
+            newBlock.sortOrder = 0
+        } else {
+            newBlock.parentBlock = block.parentBlock
+            newBlock.sortOrder = block.sortOrder + 1
+            let siblings: [PlanNoteBlock]
+            if let parent = block.parentBlock {
+                siblings = parent.sortedChildBlocks
+            } else {
+                siblings = note.rootBlocks
+            }
+            for sibling in siblings where sibling.persistentModelID != newBlock.persistentModelID && sibling.sortOrder > block.sortOrder {
+                sibling.sortOrder += 1
+            }
+        }
     }
 
     private func appendBlockAtEnd() {
-        let newBlock = PlanNoteBlock(
-            kind: .paragraph,
-            text: "",
-            sortOrder: (note.rootBlocks.map(\.sortOrder).max() ?? -1) + 1,
-            note: note,
-            parentBlock: nil
-        )
-        modelContext.insert(newBlock)
-        note.blocks.append(newBlock)
-        note.normalizeBlockSortOrder()
-        saveNoteChange()
-        focusedBlockID = newBlock.persistentModelID
+        var newBlockID: PersistentIdentifier?
+        performUndoableChange("Add Block") {
+            let newBlock = PlanNoteBlock(
+                kind: .paragraph,
+                text: "",
+                sortOrder: (note.rootBlocks.map(\.sortOrder).max() ?? -1) + 1,
+                note: note,
+                parentBlock: nil
+            )
+            modelContext.insert(newBlock)
+            note.blocks.append(newBlock)
+            note.normalizeBlockSortOrder()
+            newBlockID = newBlock.persistentModelID
+        }
+        if let newBlockID {
+            focusedBlockID = newBlockID
+            focusGeneration &+= 1
+        }
     }
 
     private func deleteEmptyBlock(_ block: PlanNoteBlock) {
@@ -314,56 +400,63 @@ struct NotePageEditorView: View {
     }
 
     private func deleteBlock(_ block: PlanNoteBlock) {
-        let tree = note.depthFirstBlocks()
-        guard tree.count > 1 else {
-            block.kind = .paragraph
-            block.text = ""
-            block.isChecked = false
-            block.parentBlock = nil
-            slashMenuBlockID = nil
-            focusedBlockID = block.persistentModelID
-            saveNoteChange()
-            return
-        }
+        performUndoableChange("Delete Block") {
+            let tree = note.depthFirstBlocks()
+            guard tree.count > 1 else {
+                block.kind = .paragraph
+                block.text = ""
+                block.isChecked = false
+                block.parentBlock = nil
+                slashMenuBlockID = nil
+                focusedBlockID = block.persistentModelID
+                return
+            }
 
-        let index = tree.firstIndex { $0.persistentModelID == block.persistentModelID } ?? 0
-        let focusTarget = index > 0 ? tree[index - 1] : tree[min(index + 1, tree.count - 1)]
-        note.blocks.removeAll { $0.persistentModelID == block.persistentModelID }
-        modelContext.delete(block)
-        note.normalizeBlockSortOrder()
-        slashMenuBlockID = nil
-        note.rebuildContentCache()
-        try? modelContext.save()
-        focusedBlockID = focusTarget.persistentModelID
+            let index = tree.firstIndex { $0.persistentModelID == block.persistentModelID } ?? 0
+            let focusTarget = index > 0 ? tree[index - 1] : tree[min(index + 1, tree.count - 1)]
+            note.blocks.removeAll { $0.persistentModelID == block.persistentModelID }
+            modelContext.delete(block)
+            note.normalizeBlockSortOrder()
+            slashMenuBlockID = nil
+            focusedBlockID = focusTarget.persistentModelID
+        }
+        focusGeneration &+= 1
     }
 
     private func convert(_ block: PlanNoteBlock, to kind: PlanNoteBlockKind) {
-        if block.kind == .toggleList, kind != .toggleList {
-            for child in Array(block.sortedChildBlocks) {
-                child.parentBlock = block.parentBlock
+        performUndoableChange("Convert Block") {
+            if block.kind == .toggleList, kind != .toggleList {
+                for child in Array(block.sortedChildBlocks) {
+                    child.parentBlock = block.parentBlock
+                }
             }
+            block.kind = kind
+            switch kind {
+            case .checklist: block.isChecked = false
+            case .toggleList: block.isChecked = true
+            default: block.isChecked = false
+            }
+            slashMenuBlockID = nil
+            note.normalizeBlockSortOrder()
+            focusedBlockID = block.persistentModelID
         }
-        block.kind = kind
-        switch kind {
-        case .checklist: block.isChecked = false
-        case .toggleList: block.isChecked = true
-        default: block.isChecked = false
-        }
-        slashMenuBlockID = nil
-        note.normalizeBlockSortOrder()
-        focusedBlockID = block.persistentModelID
-        saveNoteChange()
+        focusGeneration &+= 1
     }
 }
+
+// MARK: - Block Subtree
 
 private struct NoteBlockSubtree: View {
     @Bindable var block: PlanNoteBlock
     var depth: CGFloat
     var focusedBlockID: PersistentIdentifier?
+    var focusGeneration: UInt
     var slashMenuBlockID: PersistentIdentifier?
+    var undoManager: UndoManager
     var onFocus: (PersistentIdentifier) -> Void
     var onSlashMenuChange: (PersistentIdentifier?) -> Void
     var onTextChanged: () -> Void
+    var onUndoableChange: (String, () -> Void) -> Void
     var onSplit: (PlanNoteBlock, Int) -> Void
     var onBackspaceEmpty: (PlanNoteBlock) -> Void
     var onSlashForBlock: (PlanNoteBlock) -> Void
@@ -375,13 +468,16 @@ private struct NoteBlockSubtree: View {
             NoteBlockRow(
                 block: block,
                 isFocused: focusedBlockID == block.persistentModelID,
+                focusGeneration: focusGeneration,
                 isShowingBlockMenu: Binding(
                     get: { slashMenuBlockID == block.persistentModelID },
                     set: { isShowing in
                         if !isShowing { onSlashMenuChange(nil) }
                     }
                 ),
+                undoManager: undoManager,
                 onTextChanged: onTextChanged,
+                onUndoableChange: onUndoableChange,
                 onReturn: { onSplit(block, $0) },
                 onBackspaceEmpty: { onBackspaceEmpty(block) },
                 onSlash: { onSlashForBlock(block) },
@@ -397,10 +493,13 @@ private struct NoteBlockSubtree: View {
                         block: child,
                         depth: depth + 1,
                         focusedBlockID: focusedBlockID,
+                        focusGeneration: focusGeneration,
                         slashMenuBlockID: slashMenuBlockID,
+                        undoManager: undoManager,
                         onFocus: onFocus,
                         onSlashMenuChange: onSlashMenuChange,
                         onTextChanged: onTextChanged,
+                        onUndoableChange: onUndoableChange,
                         onSplit: onSplit,
                         onBackspaceEmpty: onBackspaceEmpty,
                         onSlashForBlock: onSlashForBlock,
@@ -414,11 +513,16 @@ private struct NoteBlockSubtree: View {
     }
 }
 
+// MARK: - Block Row
+
 private struct NoteBlockRow: View {
     @Bindable var block: PlanNoteBlock
     var isFocused: Bool
+    var focusGeneration: UInt
     @Binding var isShowingBlockMenu: Bool
+    var undoManager: UndoManager
     var onTextChanged: () -> Void
+    var onUndoableChange: (String, () -> Void) -> Void
     var onReturn: (Int) -> Void
     var onBackspaceEmpty: () -> Void
     var onSlash: () -> Void
@@ -484,6 +588,8 @@ private struct NoteBlockRow: View {
                     text: $block.text,
                     kind: block.kind,
                     isFocused: isFocused,
+                    focusGeneration: focusGeneration,
+                    undoManager: undoManager,
                     onTextChanged: onTextChanged,
                     onReturn: onReturn,
                     onBackspaceEmpty: onBackspaceEmpty,
@@ -491,7 +597,6 @@ private struct NoteBlockRow: View {
                     onHeightChange: { height = $0 },
                     onBecomeFirstResponder: onBecameFirstResponder
                 )
-                // Fixed height (not min+max) so the representable can’t size to a one-line intrinsic height while text wraps; that caused overlap with the next block.
                 .frame(height: max(height, minHeight))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -536,15 +641,24 @@ private struct NoteBlockRow: View {
                 .foregroundStyle(.secondary)
                 .padding(.top, 1)
         case .checklist:
-            Toggle("", isOn: $block.isChecked)
+            Toggle("", isOn: Binding(
+                get: { block.isChecked },
+                set: { newValue in
+                    onUndoableChange("Toggle Checklist") {
+                        block.isChecked = newValue
+                        onTextChanged()
+                    }
+                }
+            ))
                 .labelsHidden()
                 .toggleStyle(.checkbox)
                 .padding(.top, 1)
-                .onChange(of: block.isChecked) { _, _ in onTextChanged() }
         case .toggleList:
             Button {
-                withAnimation(.easeInOut(duration: 0.15)) { block.isChecked.toggle() }
-                onTextChanged()
+                onUndoableChange("Toggle List") {
+                    withAnimation(.easeInOut(duration: 0.15)) { block.isChecked.toggle() }
+                    onTextChanged()
+                }
             } label: {
                 Image(systemName: "chevron.right")
                     .font(.body.weight(.semibold))
@@ -569,10 +683,14 @@ private struct NoteBlockRow: View {
     }
 }
 
+// MARK: - NSViewRepresentable
+
 private struct BlockTextView: NSViewRepresentable {
     @Binding var text: String
     var kind: PlanNoteBlockKind
     var isFocused: Bool
+    var focusGeneration: UInt
+    var undoManager: UndoManager
     var onTextChanged: () -> Void
     var onReturn: (Int) -> Void
     var onBackspaceEmpty: () -> Void
@@ -602,18 +720,20 @@ private struct BlockTextView: NSViewRepresentable {
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
-        // When true, the text system can outgrow the SwiftUI frame, causing clashing layout and line overlap.
         textView.isVerticallyResizable = false
         textView.maxSize = NSSize(width: 100_000, height: 100_000)
         textView.font = nsFont
         textView.string = text
+        textView.sharedUndoManager = undoManager
         applyDynamicColors(to: textView)
         textView.commandHandler = context.coordinator.handle
+        textView.onBecameFirstResponder = { onBecomeFirstResponder?() }
         return textView
     }
 
     func updateNSView(_ textView: BlockNSTextView, context: Context) {
         context.coordinator.parent = self
+        textView.sharedUndoManager = undoManager
         textView.onBecameFirstResponder = { onBecomeFirstResponder?() }
         let coordinator = context.coordinator
         textView.onWidthForLayoutChange = { [weak textView] in
@@ -630,14 +750,12 @@ private struct BlockTextView: NSViewRepresentable {
             let selection = textView.selectedRange()
             textView.string = text
             applyDynamicColors(to: textView)
-            textView.setSelectedRange(NSRange(location: min(selection.location, text.count), length: 0))
+            textView.setSelectedRange(NSRange(location: min(selection.location, (text as NSString).length), length: 0))
         }
 
         DispatchQueue.main.async {
-            context.coordinator.recalculateHeight(textView)
-            if isFocused, textView.window?.firstResponder !== textView {
-                textView.window?.makeFirstResponder(textView)
-            }
+            coordinator.recalculateHeight(textView)
+            coordinator.applyFocusIfNeeded(textView)
         }
     }
 
@@ -673,6 +791,7 @@ private struct BlockTextView: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: BlockTextView
+        private var lastAppliedGeneration: UInt = 0
 
         init(_ parent: BlockTextView) {
             self.parent = parent
@@ -690,7 +809,11 @@ private struct BlockTextView: NSViewRepresentable {
         func handle(_ command: BlockTextCommand, textView: BlockNSTextView) -> Bool {
             switch command {
             case .returnKey:
-                parent.onReturn(textView.selectedRange().location)
+                if parent.text != textView.string {
+                    parent.text = textView.string
+                }
+                let cursor = textView.selectedRange().location
+                parent.onReturn(cursor)
                 return true
             case .backspaceAtStart:
                 parent.onBackspaceEmpty()
@@ -698,6 +821,29 @@ private struct BlockTextView: NSViewRepresentable {
             case .slash:
                 parent.onSlash()
                 return true
+            }
+        }
+
+        func applyFocusIfNeeded(_ textView: BlockNSTextView) {
+            guard parent.isFocused else { return }
+
+            let gen = parent.focusGeneration
+            let isAlreadyFocused = textView.window?.firstResponder === textView
+            let needsForceFocus = gen != lastAppliedGeneration
+
+            guard !isAlreadyFocused || needsForceFocus else { return }
+
+            if textView.window != nil {
+                textView.window?.makeFirstResponder(textView)
+                if needsForceFocus {
+                    textView.setSelectedRange(NSRange(location: 0, length: 0))
+                }
+                lastAppliedGeneration = gen
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self, weak textView] in
+                    guard let self, let textView else { return }
+                    self.applyFocusIfNeeded(textView)
+                }
             }
         }
 
@@ -738,6 +884,8 @@ private struct BlockTextView: NSViewRepresentable {
     }
 }
 
+// MARK: - NSTextView subclass
+
 private enum BlockTextCommand {
     case returnKey
     case backspaceAtStart
@@ -748,7 +896,12 @@ private final class BlockNSTextView: NSTextView {
     var commandHandler: ((BlockTextCommand, BlockNSTextView) -> Bool)?
     var onBecameFirstResponder: (() -> Void)?
     var onWidthForLayoutChange: (() -> Void)?
+    var sharedUndoManager: UndoManager?
     private var lastLayoutWidth: CGFloat = -1
+
+    override var undoManager: UndoManager? {
+        sharedUndoManager ?? super.undoManager
+    }
 
     override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()

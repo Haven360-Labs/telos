@@ -39,6 +39,7 @@
 		A1000030 /* ProjectHubExpandedSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000030 /* ProjectHubExpandedSections.swift */; };
 		A1000031 /* ProjectBoardNavigationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000031 /* ProjectBoardNavigationStore.swift */; };
 		A1000032 /* PlanTaskProjectLinking.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000032 /* PlanTaskProjectLinking.swift */; };
+		A1000033 /* NoteEditorUndo.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000033 /* NoteEditorUndo.swift */; };
 		BB000101 /* TelosStoreLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000201 /* TelosStoreLocation.swift */; };
 		BB000102 /* TelosFullBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000202 /* TelosFullBackup.swift */; };
 		BB000103 /* TelosBackupCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB000203 /* TelosBackupCoordinator.swift */; };
@@ -80,6 +81,7 @@
 		A2000030 /* ProjectHubExpandedSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectHubExpandedSections.swift; sourceTree = "<group>"; };
 		A2000031 /* ProjectBoardNavigationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectBoardNavigationStore.swift; sourceTree = "<group>"; };
 		A2000032 /* PlanTaskProjectLinking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanTaskProjectLinking.swift; sourceTree = "<group>"; };
+		A2000033 /* NoteEditorUndo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditorUndo.swift; sourceTree = "<group>"; };
 		BB000201 /* TelosStoreLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelosStoreLocation.swift; sourceTree = "<group>"; };
 		BB000202 /* TelosFullBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelosFullBackup.swift; sourceTree = "<group>"; };
 		BB000203 /* TelosBackupCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelosBackupCoordinator.swift; sourceTree = "<group>"; };
@@ -157,6 +159,7 @@
 				A2000008 /* TimerStore.swift */,
 				A2000031 /* ProjectBoardNavigationStore.swift */,
 				A2000032 /* PlanTaskProjectLinking.swift */,
+				A2000033 /* NoteEditorUndo.swift */,
 				A2000012 /* ExportService.swift */,
 				A2000013 /* StreakStore.swift */,
 			);
@@ -256,6 +259,7 @@
 				A1000008 /* TimerStore.swift in Sources */,
 				A1000031 /* ProjectBoardNavigationStore.swift in Sources */,
 				A1000032 /* PlanTaskProjectLinking.swift in Sources */,
+				A1000033 /* NoteEditorUndo.swift in Sources */,
 				A1000009 /* MenuBarLabelView.swift in Sources */,
 				A1000010 /* PlanNote.swift in Sources */,
 				A1000011 /* NotesListView.swift in Sources */,

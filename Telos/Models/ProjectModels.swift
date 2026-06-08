@@ -486,7 +486,39 @@ final class ProjectChangelogEntry {
 // MARK: - Defaults
 
 enum ProjectBoardDefaults {
-    static let columnTitles = ["Backlog", "Doing", "Done"]
+    static let columnTitles = ["Todo", "In progress", "Completed"]
+
+    private static let legacyColumnRenames: [String: String] = [
+        "Backlog": "Todo",
+        "Doing": "In progress",
+        "Done": "Completed",
+    ]
+
+    /// Renames default columns created before the Todo / In progress / Completed labels.
+    static func migrateLegacyColumnTitles(modelContext: ModelContext) {
+        guard let columns = try? modelContext.fetch(FetchDescriptor<ProjectKanbanColumn>()) else { return }
+        var changed = false
+        for column in columns {
+            guard let newTitle = legacyColumnRenames[column.title] else { continue }
+            column.title = newTitle
+            changed = true
+        }
+        if changed {
+            try? modelContext.save()
+        }
+    }
+
+    /// Whether a column title represents a finished board state (current or legacy name).
+    static func isCompletedColumnTitle(_ title: String) -> Bool {
+        let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "completed" || normalized == "done"
+    }
+
+    /// Whether a column title represents active work (current or legacy name).
+    static func isInProgressColumnTitle(_ title: String) -> Bool {
+        let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "in progress" || normalized == "doing"
+    }
 
     static func ensureDefaultColumns(for project: Project, modelContext: ModelContext) {
         let mainBoard = project.kanbanColumns.filter { $0.sprint == nil }
@@ -498,7 +530,7 @@ enum ProjectBoardDefaults {
         }
     }
 
-    /// Creates default Backlog / Doing / Done columns for a sprint’s board (tied to the same project).
+    /// Creates default Todo / In progress / Completed columns for a sprint’s board (tied to the same project).
     static func ensureDefaultColumns(for sprint: ProjectSprint, modelContext: ModelContext) {
         guard sprint.kanbanColumns.isEmpty, let project = sprint.project else { return }
         for (index, title) in columnTitles.enumerated() {

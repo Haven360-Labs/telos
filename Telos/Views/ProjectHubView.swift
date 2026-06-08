@@ -392,12 +392,12 @@ private struct ProjectOverviewSection: View {
         project.kanbanColumns.filter { $0.sprint == nil }.reduce(0) { $0 + $1.cards.count }
     }
 
-    /// Main-board kanban cards not in a column titled “Done” (same notion as “open tasks” as the board).
+    /// Main-board kanban cards not in a completed column (same notion as “open tasks” on the board).
     private var openIssueCount: Int {
         let mainCols = project.kanbanColumns.filter { $0.sprint == nil }
         return mainCols.flatMap(\.cards).filter { card in
             guard let col = card.column else { return true }
-            return col.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "done"
+            return !ProjectBoardDefaults.isCompletedColumnTitle(col.title)
         }.count
     }
 
@@ -631,7 +631,12 @@ private struct KanbanBoardSection: View {
             if let card = boardCustomTimerCard {
                 CustomTimerSheet(
                     onStart: { totalMinutes in
-                        let task = ensureTodayLinkedPlanTask(for: card)
+                        let task = PlanTaskProjectLinking.ensureTodayPlanTask(
+                            for: card,
+                            dayStore: dayStore,
+                            modelContext: modelContext,
+                            streakStore: streakStore
+                        )
                         timerStore.startCountdown(task: task, durationMinutes: totalMinutes, modelContext: modelContext)
                         streakStore.recordUsage()
                         showBoardCustomTimer = false
@@ -733,6 +738,12 @@ private struct KanbanBoardSection: View {
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
                 }
+                if PlanTaskProjectLinking.isKanbanCardOnToday(card, dayStore: dayStore, modelContext: modelContext) {
+                    Image(systemName: "sun.max.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .help("On Today's list")
+                }
                 Spacer(minLength: 0)
                 if boardTimerActive {
                     Image(systemName: "timer")
@@ -742,7 +753,12 @@ private struct KanbanBoardSection: View {
                 } else {
                     Menu {
                         Button {
-                            let task = ensureTodayLinkedPlanTask(for: card)
+                            let task = PlanTaskProjectLinking.ensureTodayPlanTask(
+                                for: card,
+                                dayStore: dayStore,
+                                modelContext: modelContext,
+                                streakStore: streakStore
+                            )
                             timerStore.startCountUp(task: task, modelContext: modelContext)
                             streakStore.recordUsage()
                         } label: {
@@ -754,7 +770,12 @@ private struct KanbanBoardSection: View {
                             .foregroundStyle(.secondary)
                         ForEach(Self.countdownDurations, id: \.self) { minutes in
                             Button("\(minutes) min") {
-                                let task = ensureTodayLinkedPlanTask(for: card)
+                                let task = PlanTaskProjectLinking.ensureTodayPlanTask(
+                                    for: card,
+                                    dayStore: dayStore,
+                                    modelContext: modelContext,
+                                    streakStore: streakStore
+                                )
                                 timerStore.startCountdown(task: task, durationMinutes: minutes, modelContext: modelContext)
                                 streakStore.recordUsage()
                             }
@@ -772,6 +793,26 @@ private struct KanbanBoardSection: View {
                     .help("Start timer on Today")
                 }
                 Menu {
+                    if PlanTaskProjectLinking.isKanbanCardOnToday(card, dayStore: dayStore, modelContext: modelContext) {
+                        Button {
+                            // Already on Today — no-op; keeps menu state clear.
+                        } label: {
+                            Label("On Today's list", systemImage: "checkmark")
+                        }
+                        .disabled(true)
+                    } else {
+                        Button {
+                            PlanTaskProjectLinking.ensureTodayPlanTask(
+                                for: card,
+                                dayStore: dayStore,
+                                modelContext: modelContext,
+                                streakStore: streakStore
+                            )
+                        } label: {
+                            Label("Add to Today", systemImage: "sun.max")
+                        }
+                    }
+                    Divider()
                     ForEach(sortedColumns.filter { $0.persistentModelID != column.persistentModelID }) { other in
                         Button("Move to \(other.title)") {
                             moveCard(card, to: other)
@@ -818,7 +859,7 @@ private struct KanbanBoardSection: View {
             }
         }
         .onAppear {
-            syncTodayLinkedTaskTitle(with: card)
+            PlanTaskProjectLinking.syncTodayPlanTaskTitles(for: card, dayStore: dayStore, modelContext: modelContext)
         }
         .draggable(KanbanCardDragPayload(card: card)) {
             cardDragPreview(card)
@@ -850,14 +891,26 @@ private struct KanbanBoardSection: View {
         guard let payload = items.first,
               let dragged = KanbanBoardDragSupport.card(for: payload, modelContext: modelContext) else { return false }
         withAnimation(.default) {
-            KanbanBoardDragSupport.drop(dragged: dragged, targetColumn: column, before: targetCard, modelContext: modelContext)
+            KanbanBoardDragSupport.drop(
+                dragged: dragged,
+                targetColumn: column,
+                before: targetCard,
+                modelContext: modelContext,
+                timerStore: timerStore
+            )
         }
         streakStore.recordUsage()
         return true
     }
 
     private func moveCard(_ card: ProjectKanbanCard, to column: ProjectKanbanColumn) {
-        KanbanBoardDragSupport.drop(dragged: card, targetColumn: column, before: nil, modelContext: modelContext)
+        KanbanBoardDragSupport.drop(
+            dragged: card,
+            targetColumn: column,
+            before: nil,
+            modelContext: modelContext,
+            timerStore: timerStore
+        )
         streakStore.recordUsage()
     }
 
@@ -870,61 +923,22 @@ private struct KanbanBoardSection: View {
             .sorted { $0.startDate > $1.startDate }
     }
 
-    /// Moves the card to the bottom of the first column on the sprint board (Backlog by default).
+    /// Moves the card to the bottom of the first column on the sprint board (Todo by default).
     private func moveCardToSprint(_ card: ProjectKanbanCard, sprint: ProjectSprint) {
         ProjectBoardDefaults.ensureDefaultColumns(for: sprint, modelContext: modelContext)
         try? modelContext.save()
         let cols = sprint.kanbanColumns.sorted { $0.sortOrder < $1.sortOrder }
         guard let target = cols.first else { return }
         withAnimation(.default) {
-            KanbanBoardDragSupport.drop(dragged: card, targetColumn: target, before: nil, modelContext: modelContext)
+            KanbanBoardDragSupport.drop(
+                dragged: card,
+                targetColumn: target,
+                before: nil,
+                modelContext: modelContext,
+                timerStore: timerStore
+            )
         }
         streakStore.recordUsage()
-    }
-
-    // MARK: - Board card ↔ Today timer (linked PlanTask)
-
-    private func ensureTodayLinkedPlanTask(for card: ProjectKanbanCard) -> PlanTask {
-        dayStore.ensureTodayExists(modelContext: modelContext)
-        let todayStart = Calendar.current.startOfDay(for: Date())
-        let planDay = dayStore.fetchDay(for: todayStart, modelContext: modelContext)
-            ?? dayStore.ensureDayExists(for: todayStart, modelContext: modelContext)
-        if let existing = planDay.tasks.first(where: {
-            $0.parent == nil && !$0.isArchived && $0.linkedKanbanCard?.persistentModelID == card.persistentModelID
-        }) {
-            syncTodayLinkedTaskTitle(planTask: existing, card: card)
-            return existing
-        }
-        let nextOrder = (planDay.tasks.filter { $0.parent == nil }.map(\.sortOrder).max() ?? -1) + 1
-        let title = card.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled" : card.title
-        let task = PlanTask(
-            title: title,
-            sortOrder: nextOrder,
-            planDay: planDay,
-            parent: nil,
-            quadrant: AppTaskSettings.defaultQuadrant,
-            linkedKanbanCard: card
-        )
-        modelContext.insert(task)
-        planDay.tasks.append(task)
-        try? modelContext.save()
-        return task
-    }
-
-    private func syncTodayLinkedTaskTitle(with card: ProjectKanbanCard) {
-        let cal = Calendar.current
-        let todayStart = cal.startOfDay(for: Date())
-        guard let day = dayStore.fetchDay(for: todayStart, modelContext: modelContext) else { return }
-        for task in day.tasks where task.parent == nil && task.linkedKanbanCard?.persistentModelID == card.persistentModelID {
-            syncTodayLinkedTaskTitle(planTask: task, card: card)
-        }
-    }
-
-    private func syncTodayLinkedTaskTitle(planTask: PlanTask, card: ProjectKanbanCard) {
-        let t = card.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled" : card.title
-        guard planTask.title != t else { return }
-        planTask.title = t
-        try? modelContext.save()
     }
 
     private func displayTrackedSeconds(for card: ProjectKanbanCard) -> Double {
